@@ -1,0 +1,23 @@
+
+== tree.stl
+  PASS  watertight                       True               0 open edges
+  PASS  winding consistent               True               
+  PASS  outward normals                  2594.7 mm3         
+  PASS  manifold (manifold3d)            NoError            
+  PASS  non-manifold edges               0                  
+  PASS  degenerate faces                 0                  
+  PASS  duplicate faces                  0                  
+  PASS  body count                       1                  expected 1
+  PASS  triangle count                   373306             limit 600000
+  PASS  sits on z = 0                    0.0                
+  PASS  fits the bed                     79.0x49.1x3.5      
+  PASS  overhangs > 45 deg               0.00 mm2           flat ceilings 0.00 mm2; in the bed band (z < 0.4) 0.0 mm2, ignored
+  PASS  thickness min (inner)            1.4 mm             p1 1.511, median 2.495, below-min area 0.0 mm2
+  PASS  total thickness                  3.472 mm           target 2.5..3.6
+  INFO  rim height (outline wall)        1.401 mm           median 2.292
+  PASS  min width, outline (projection)  1.04 mm            p1 1.088, necks < 0.90: 0 (0.0 mm2); sharp tips/corners 1
+  INFO  min width, section z=0.05        0.792 mm           p1 0.862, necks < 0.90: 4 (4.0512 mm2) worst at [34.24, 37.48]; sharp tips/corners 23
+  PASS  min width, section z=1           1.018 mm           p1 1.088, necks < 0.90: 0 (0.0 mm2); sharp tips/corners 2
+
+OVERALL: PASS
+report: tree/out/checks/check_mesh.json

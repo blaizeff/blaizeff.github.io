@@ -1,0 +1,583 @@
+{
+ "overall": "PASS",
+ "meshes": {
+  "tree.stl": {
+   "path": "/home/user/blaizeff.github.io/place-cards/tree/out/tree.stl",
+   "topology": {
+    "triangles": 373306,
+    "vertices": 186649,
+    "watertight": true,
+    "winding_consistent": true,
+    "volume_mm3": 2594.718143674566,
+    "area_mm2": 3957.472835993578,
+    "outward_normals": true,
+    "nonmanifold_edges": 0,
+    "boundary_edges": 0,
+    "degenerate_faces": 0,
+    "duplicate_faces": 0,
+    "bodies": 1,
+    "manifold3d_status": "NoError",
+    "manifold3d_ok": true,
+    "manifold3d_volume_mm3": 2594.718143674567,
+    "manifold3d_genus": 3
+   },
+   "bed": {
+    "bbox_min": [
+     -31.0758,
+     0.0,
+     0.0
+    ],
+    "bbox_max": [
+     47.8975,
+     49.0675,
+     3.4717
+    ],
+    "size": [
+     78.9732,
+     49.0675,
+     3.4717
+    ],
+    "on_bed": true,
+    "fits_bed": true,
+    "fits_bed_turned": false
+   },
+   "overhangs": {
+    "threshold_deg": 45.0,
+    "overhang_area_mm2": 0.0,
+    "overhang_faces": 0,
+    "flat_ceiling_area_mm2": 0.0,
+    "bed_band_mm": 0.4,
+    "bed_band_overhang_area_mm2": 0.0,
+    "bed_face_area_mm2": 915.9980562174463
+   },
+   "relief": {
+    "grid_res_mm": 0.04,
+    "projected_area_mm2": 1110.7856,
+    "thickness_all_mm": {
+     "min": 1.105,
+     "p1": 1.261,
+     "p5": 1.473,
+     "median": 2.341,
+     "max": 3.472
+    },
+    "thickness_inner_mm": {
+     "min": 1.4,
+     "p1": 1.511,
+     "p5": 1.766,
+     "median": 2.495,
+     "max": 3.472
+    },
+    "thickness_inner_below_min_mm2": 0.0,
+    "max_height_mm": 3.472,
+    "rim_thickness_mm": {
+     "min": 1.401,
+     "p1": 1.448,
+     "p5": 1.7,
+     "median": 2.292,
+     "max": 3.377
+    },
+    "widths": {
+     "outline (projection)": {
+      "layer": "outline (projection)",
+      "area_mm2": 1110.7856,
+      "skeleton_px": 8572,
+      "width_min_mm": 1.04,
+      "width_p1_mm": 1.088,
+      "width_p5_mm": 1.165,
+      "width_median_mm": 2.707,
+      "width_hist_bins_mm": [
+       0,
+       0.4,
+       0.6,
+       0.8,
+       0.9,
+       1.0,
+       1.1,
+       1.2,
+       1.5,
+       2.0,
+       3.0,
+       5.0,
+       1000
+      ],
+      "width_hist_px": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       103,
+       435,
+       798,
+       1340,
+       2125,
+       2955,
+       816
+      ],
+      "skeleton_below_min_frac": 0.0,
+      "thin_necks_count": 0,
+      "thin_necks_area_mm2": 0.0,
+      "thin_necks": [],
+      "sharp_tips_count": 1,
+      "sharp_tips": [
+       {
+        "area_mm2": 0.0832,
+        "extent_mm": 0.68,
+        "at_mm": [
+         -26.72,
+         18.96
+        ]
+       }
+      ],
+      "width_min_at_mm": [
+       35.04,
+       37.8
+      ]
+     },
+     "section z=0.05": {
+      "layer": "section z=0.05",
+      "area_mm2": 968.1424000000001,
+      "skeleton_px": 9220,
+      "width_min_mm": 0.792,
+      "width_p1_mm": 0.862,
+      "width_p5_mm": 0.99,
+      "width_median_mm": 2.721,
+      "width_hist_bins_mm": [
+       0,
+       0.4,
+       0.6,
+       0.8,
+       0.9,
+       1.0,
+       1.1,
+       1.2,
+       1.5,
+       2.0,
+       3.0,
+       5.0,
+       1000
+      ],
+      "width_hist_px": [
+       0,
+       0,
+       1,
+       179,
+       289,
+       196,
+       174,
+       577,
+       942,
+       2926,
+       3380,
+       556
+      ],
+      "skeleton_below_min_frac": 0.0509,
+      "thin_necks_count": 4,
+      "thin_necks_area_mm2": 4.0512,
+      "thin_necks": [
+       {
+        "area_mm2": 2.2048,
+        "extent_mm": 2.96,
+        "at_mm": [
+         34.24,
+         37.48
+        ]
+       },
+       {
+        "area_mm2": 1.2064,
+        "extent_mm": 1.92,
+        "at_mm": [
+         8.68,
+         20.64
+        ]
+       },
+       {
+        "area_mm2": 0.4544,
+        "extent_mm": 1.28,
+        "at_mm": [
+         6.96,
+         19.6
+        ]
+       },
+       {
+        "area_mm2": 0.1856,
+        "extent_mm": 0.96,
+        "at_mm": [
+         35.6,
+         34.92
+        ]
+       }
+      ],
+      "sharp_tips_count": 23,
+      "sharp_tips": [
+       {
+        "area_mm2": 0.568,
+        "extent_mm": 1.2,
+        "at_mm": [
+         -20.72,
+         18.24
+        ]
+       },
+       {
+        "area_mm2": 0.52,
+        "extent_mm": 1.08,
+        "at_mm": [
+         -9.44,
+         33.36
+        ]
+       },
+       {
+        "area_mm2": 0.4528,
+        "extent_mm": 1.04,
+        "at_mm": [
+         3.44,
+         18.44
+        ]
+       },
+       {
+        "area_mm2": 0.3952,
+        "extent_mm": 1.0,
+        "at_mm": [
+         -26.48,
+         19.16
+        ]
+       },
+       {
+        "area_mm2": 0.3136,
+        "extent_mm": 0.92,
+        "at_mm": [
+         40.28,
+         26.4
+        ]
+       },
+       {
+        "area_mm2": 0.2576,
+        "extent_mm": 0.88,
+        "at_mm": [
+         -21.08,
+         9.72
+        ]
+       },
+       {
+        "area_mm2": 0.1488,
+        "extent_mm": 0.84,
+        "at_mm": [
+         14.16,
+         27.08
+        ]
+       },
+       {
+        "area_mm2": 0.2528,
+        "extent_mm": 0.84,
+        "at_mm": [
+         41.16,
+         38.6
+        ]
+       },
+       {
+        "area_mm2": 0.144,
+        "extent_mm": 0.8,
+        "at_mm": [
+         4.76,
+         0.56
+        ]
+       },
+       {
+        "area_mm2": 0.1584,
+        "extent_mm": 0.8,
+        "at_mm": [
+         -10.0,
+         30.76
+        ]
+       },
+       {
+        "area_mm2": 0.0848,
+        "extent_mm": 0.8,
+        "at_mm": [
+         -19.24,
+         36.08
+        ]
+       },
+       {
+        "area_mm2": 0.152,
+        "extent_mm": 0.8,
+        "at_mm": [
+         -2.72,
+         47.32
+        ]
+       },
+       {
+        "area_mm2": 0.0688,
+        "extent_mm": 0.76,
+        "at_mm": [
+         -16.28,
+         6.8
+        ]
+       },
+       {
+        "area_mm2": 0.1328,
+        "extent_mm": 0.76,
+        "at_mm": [
+         10.04,
+         12.96
+        ]
+       },
+       {
+        "area_mm2": 0.0624,
+        "extent_mm": 0.76,
+        "at_mm": [
+         16.28,
+         17.96
+        ]
+       },
+       {
+        "area_mm2": 0.0544,
+        "extent_mm": 0.76,
+        "at_mm": [
+         35.84,
+         40.92
+        ]
+       },
+       {
+        "area_mm2": 0.0576,
+        "extent_mm": 0.72,
+        "at_mm": [
+         -30.76,
+         28.88
+        ]
+       },
+       {
+        "area_mm2": 0.0656,
+        "extent_mm": 0.68,
+        "at_mm": [
+         10.52,
+         36.4
+        ]
+       },
+       {
+        "area_mm2": 0.0752,
+        "extent_mm": 0.68,
+        "at_mm": [
+         8.6,
+         43.68
+        ]
+       },
+       {
+        "area_mm2": 0.056,
+        "extent_mm": 0.68,
+        "at_mm": [
+         11.48,
+         47.24
+        ]
+       },
+       {
+        "area_mm2": 0.0624,
+        "extent_mm": 0.64,
+        "at_mm": [
+         33.76,
+         26.76
+        ]
+       },
+       {
+        "area_mm2": 0.0608,
+        "extent_mm": 0.64,
+        "at_mm": [
+         18.52,
+         43.48
+        ]
+       },
+       {
+        "area_mm2": 0.0416,
+        "extent_mm": 0.64,
+        "at_mm": [
+         26.88,
+         48.68
+        ]
+       }
+      ],
+      "width_min_at_mm": [
+       36.36,
+       37.8
+      ]
+     },
+     "section z=1": {
+      "layer": "section z=1",
+      "area_mm2": 1124.3424,
+      "skeleton_px": 9427,
+      "width_min_mm": 1.018,
+      "width_p1_mm": 1.088,
+      "width_p5_mm": 1.211,
+      "width_median_mm": 2.899,
+      "width_hist_bins_mm": [
+       0,
+       0.4,
+       0.6,
+       0.8,
+       0.9,
+       1.0,
+       1.1,
+       1.2,
+       1.5,
+       2.0,
+       3.0,
+       5.0,
+       1000
+      ],
+      "width_hist_px": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       108,
+       213,
+       726,
+       1118,
+       2777,
+       3627,
+       858
+      ],
+      "skeleton_below_min_frac": 0.0,
+      "thin_necks_count": 0,
+      "thin_necks_area_mm2": 0.0,
+      "thin_necks": [],
+      "sharp_tips_count": 2,
+      "sharp_tips": [
+       {
+        "area_mm2": 0.048,
+        "extent_mm": 0.6,
+        "at_mm": [
+         -26.8,
+         18.92
+        ]
+       },
+       {
+        "area_mm2": 0.024,
+        "extent_mm": 0.52,
+        "at_mm": [
+         -21.52,
+         9.48
+        ]
+       }
+      ],
+      "width_min_at_mm": [
+       36.4,
+       37.72
+      ]
+     }
+    }
+   },
+   "relief_png": "/home/user/blaizeff.github.io/place-cards/tree/out/checks/tree_relief.png",
+   "verdicts": [
+    {
+     "check": "watertight",
+     "status": "PASS",
+     "value": true,
+     "note": "0 open edges"
+    },
+    {
+     "check": "winding consistent",
+     "status": "PASS",
+     "value": true,
+     "note": ""
+    },
+    {
+     "check": "outward normals",
+     "status": "PASS",
+     "value": "2594.7 mm3",
+     "note": ""
+    },
+    {
+     "check": "manifold (manifold3d)",
+     "status": "PASS",
+     "value": "NoError",
+     "note": ""
+    },
+    {
+     "check": "non-manifold edges",
+     "status": "PASS",
+     "value": 0,
+     "note": ""
+    },
+    {
+     "check": "degenerate faces",
+     "status": "PASS",
+     "value": 0,
+     "note": ""
+    },
+    {
+     "check": "duplicate faces",
+     "status": "PASS",
+     "value": 0,
+     "note": ""
+    },
+    {
+     "check": "body count",
+     "status": "PASS",
+     "value": 1,
+     "note": "expected 1"
+    },
+    {
+     "check": "triangle count",
+     "status": "PASS",
+     "value": 373306,
+     "note": "limit 600000"
+    },
+    {
+     "check": "sits on z = 0",
+     "status": "PASS",
+     "value": 0.0,
+     "note": ""
+    },
+    {
+     "check": "fits the bed",
+     "status": "PASS",
+     "value": "79.0x49.1x3.5",
+     "note": ""
+    },
+    {
+     "check": "overhangs > 45 deg",
+     "status": "PASS",
+     "value": "0.00 mm2",
+     "note": "flat ceilings 0.00 mm2; in the bed band (z < 0.4) 0.0 mm2, ignored"
+    },
+    {
+     "check": "thickness min (inner)",
+     "status": "PASS",
+     "value": "1.4 mm",
+     "note": "p1 1.511, median 2.495, below-min area 0.0 mm2"
+    },
+    {
+     "check": "total thickness",
+     "status": "PASS",
+     "value": "3.472 mm",
+     "note": "target 2.5..3.6"
+    },
+    {
+     "check": "rim height (outline wall)",
+     "status": "INFO",
+     "value": "1.401 mm",
+     "note": "median 2.292"
+    },
+    {
+     "check": "min width, outline (projection)",
+     "status": "PASS",
+     "value": "1.04 mm",
+     "note": "p1 1.088, necks < 0.90: 0 (0.0 mm2); sharp tips/corners 1"
+    },
+    {
+     "check": "min width, section z=0.05",
+     "status": "INFO",
+     "value": "0.792 mm",
+     "note": "p1 0.862, necks < 0.90: 4 (4.0512 mm2) worst at [34.24, 37.48]; sharp tips/corners 23"
+    },
+    {
+     "check": "min width, section z=1",
+     "status": "PASS",
+     "value": "1.018 mm",
+     "note": "p1 1.088, necks < 0.90: 0 (0.0 mm2); sharp tips/corners 2"
+    }
+   ]
+  }
+ }
+}

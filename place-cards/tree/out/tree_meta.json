@@ -1,0 +1,1047 @@
+{
+ "name": "gold tree relief (final, from variant B + judge fixes)",
+ "units": "mm",
+ "frame": "canonical tree frame: origin = bottom-centre of trunk base, +x right, +y up (front view), polygons are the bottom (glue) face outline",
+ "scale_mm_per_model_unit": 110.7,
+ "pixel_mm": 0.033209999999999996,
+ "bbox_3d": {
+  "min": [
+   -31.0758,
+   0.0,
+   0.0
+  ],
+  "max": [
+   47.8975,
+   49.0675,
+   3.4717
+  ],
+  "size": [
+   78.973,
+   49.068,
+   3.472
+  ]
+ },
+ "thickness_mm": {
+  "min": 1.4,
+  "p1": 1.43,
+  "p5": 1.564,
+  "median": 2.346,
+  "mean": 2.354,
+  "p99": 3.302,
+  "max": 3.473,
+  "hist_bins": [
+   0,
+   1.0,
+   1.2,
+   1.3,
+   1.4,
+   1.6,
+   2.0,
+   2.5,
+   3.0,
+   3.3,
+   3.6,
+   4.0
+  ],
+  "hist_counts_px": [
+   0,
+   0,
+   0,
+   0,
+   61252,
+   187321,
+   373736,
+   287079,
+   97475,
+   10492,
+   0
+  ]
+ },
+ "volume_mm3": 2594.72,
+ "mass_solid_g": 3.22,
+ "density_g_cm3": 1.24,
+ "triangles": 373306,
+ "vertices": 186649,
+ "trunk_base": {
+  "x_left": -4.685,
+  "x_right": 4.685,
+  "y": 0.0,
+  "flat_cut_x_left": -4.685,
+  "flat_cut_x_right": 4.685,
+  "glue_face_x_left": -4.905,
+  "glue_face_x_right": 5.001,
+  "glue_face_y_min": 0.205
+ },
+ "outline_area_mm2": 1110.63,
+ "outline_holes_mm2": [
+  4.928,
+  2.374,
+  14.182
+ ],
+ "glue_face_area_mm2": 916.0,
+ "glue_face_holes_mm2": [
+  6.658,
+  3.622,
+  18.521
+ ],
+ "chamfer": {
+  "glue_vertex_inset_mm": {
+   "min": 0.1498,
+   "max": 0.3
+  },
+  "chamfer_per_wall_vertex_mm": {
+   "min": 0.15,
+   "p5": 0.1655,
+   "median": 0.2609,
+   "max": 0.3,
+   "fraction_full": 0.346
+  }
+ },
+ "min_width_top_outline": {
+  "bins_mm": [
+   0,
+   0.4,
+   0.6,
+   0.8,
+   0.9,
+   1.0,
+   1.1,
+   1.2,
+   1.5,
+   2.0,
+   3.0,
+   5.0,
+   100
+  ],
+  "counts": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   229,
+   959,
+   1443,
+   2654,
+   4149,
+   5998,
+   1617
+  ],
+  "end_skip_mm": 1.2,
+  "min_mm": 1.036,
+  "p1_mm": 1.089,
+  "thinnest_xy_w": [
+   [
+    35.18,
+    37.83,
+    1.036
+   ],
+   [
+    35.14,
+    37.83,
+    1.043
+   ],
+   [
+    35.28,
+    37.87,
+    1.043
+   ],
+   [
+    35.24,
+    37.87,
+    1.043
+   ],
+   [
+    35.22,
+    37.85,
+    1.043
+   ],
+   [
+    10.14,
+    18.13,
+    1.045
+   ],
+   [
+    35.34,
+    37.89,
+    1.047
+   ],
+   [
+    35.08,
+    37.79,
+    1.053
+   ]
+  ],
+  "method": "medial axis on a 0.02 mm raster, points within 1.2 mm (geodesic) of a free end excluded"
+ },
+ "min_width_glue_face": {
+  "bins_mm": [
+   0,
+   0.4,
+   0.6,
+   0.8,
+   0.9,
+   1.0,
+   1.1,
+   1.2,
+   1.5,
+   2.0,
+   3.0,
+   5.0,
+   100
+  ],
+  "counts": [
+   0,
+   0,
+   881,
+   817,
+   710,
+   539,
+   467,
+   2046,
+   2336,
+   3656,
+   4851,
+   983
+  ],
+  "end_skip_mm": 1.2,
+  "min_mm": 0.715,
+  "p1_mm": 0.749,
+  "thinnest_xy_w": [
+   [
+    36.31,
+    37.8,
+    0.715
+   ],
+   [
+    36.29,
+    37.82,
+    0.715
+   ],
+   [
+    36.27,
+    37.84,
+    0.718
+   ],
+   [
+    36.33,
+    37.78,
+    0.718
+   ],
+   [
+    10.11,
+    18.12,
+    0.718
+   ],
+   [
+    10.13,
+    18.12,
+    0.718
+   ],
+   [
+    10.15,
+    18.14,
+    0.724
+   ],
+   [
+    36.25,
+    37.86,
+    0.724
+   ]
+  ],
+  "method": "medial axis on a 0.02 mm raster, points within 1.2 mm (geodesic) of a free end excluded"
+ },
+ "min_gap_top_outline": {
+  "bins_mm": [
+   0,
+   0.4,
+   0.6,
+   0.8,
+   0.9,
+   1.0,
+   1.1,
+   1.2,
+   1.5,
+   2.0,
+   3.0,
+   5.0,
+   100
+  ],
+  "counts": [
+   0,
+   11,
+   146,
+   66,
+   487,
+   1022,
+   412,
+   1232,
+   3007,
+   6299,
+   6459,
+   4156
+  ],
+  "end_skip_mm": 1.2,
+  "min_mm": 0.562,
+  "p1_mm": 0.908,
+  "thinnest_xy_w": [
+   [
+    37.18,
+    33.91,
+    0.562
+   ],
+   [
+    37.16,
+    33.91,
+    0.575
+   ],
+   [
+    37.2,
+    33.89,
+    0.575
+   ],
+   [
+    37.26,
+    33.89,
+    0.58
+   ],
+   [
+    37.28,
+    33.89,
+    0.58
+   ],
+   [
+    37.12,
+    33.91,
+    0.581
+   ],
+   [
+    37.24,
+    33.89,
+    0.581
+   ],
+   [
+    37.14,
+    33.91,
+    0.585
+   ]
+  ],
+  "method": "medial axis on a 0.02 mm raster, points within 1.2 mm (geodesic) of a free end excluded"
+ },
+ "convex_corner_radius_top_outline": {
+  "min_mm": 0.418,
+  "p1_mm": 0.442,
+  "tightest_xy_r": [
+   [
+    -27.05,
+    19.03,
+    0.418
+   ],
+   [
+    25.34,
+    30.58,
+    0.419
+   ],
+   [
+    10.38,
+    12.55,
+    0.419
+   ],
+   [
+    -27.05,
+    19.03,
+    0.419
+   ],
+   [
+    -21.61,
+    9.5,
+    0.419
+   ]
+  ],
+  "method": "circumradius over 0.20 mm arcs of the 0.01 mm resampled outline"
+ },
+ "exact_outline_checks": {
+  "tip_opening_residual_mm2": {
+   "total": 0.02777,
+   "largest_piece": 6e-05
+  },
+  "gap_opening_residual_mm2": {
+   "total": 0.01674,
+   "largest_piece": 7e-05
+  },
+  "tip_radius_tested_mm": 0.41,
+  "gap_tested_mm": 0.53,
+  "note": "exact shapely openings. Tips: residual ~0 means every convex corner of the top outline has radius >= tip_radius. Gaps: residual ~0 means no slot or notch of the open space is narrower than min_gap (the final closing fills them with min_gap/2 fillets)."
+ },
+ "solid_checks": {
+  "vertical_ray_test": {
+   "grid_mm": 0.05,
+   "rays_cast": 459449,
+   "grid_points_in_bbox": 1549980,
+   "rays_hitting": 444257,
+   "hit_count_histogram": [
+    15192,
+    0,
+    444257
+   ],
+   "non_heightfield_columns_area_mm2": 0.0,
+   "odd_hit_columns": 0,
+   "thickness_top_z_mm": {
+    "min": 1.4,
+    "p1": 1.4337,
+    "area_below_1.4_mm2": 0.0,
+    "area_below_floor_mm2": 0.0
+   },
+   "bed_contact_columns_bottom_z_absmax": 0.0,
+   "note": "thickness = height of the top surface above the bed in each column (the chamfer band columns are included: their top is the relief, their bottom the chamfer)"
+  },
+  "rim_roughness": {
+   "mm_inside_edge": {
+    "0.03": {
+     "std": 0.007,
+     "p99": 0.0223
+    },
+    "0.06": {
+     "std": 0.0075,
+     "p99": 0.024
+    },
+    "0.12": {
+     "std": 0.0063,
+     "p99": 0.0245
+    },
+    "0.25": {
+     "std": 0.0064,
+     "p99": 0.0275
+    }
+   },
+   "windows_xy": [
+    [
+     41,
+     28.6
+    ],
+    [
+     -26,
+     28.5
+    ],
+    [
+     0,
+     44
+    ],
+    [
+     10,
+     25
+    ],
+    [
+     -17,
+     15
+    ],
+    [
+     30,
+     36
+    ]
+   ]
+  },
+  "exact_sections": {
+   "0.0005": {
+    "area_mm2": 916.383,
+    "parts": 1,
+    "width_min_mm": 0.718,
+    "width_p1_mm": 0.749,
+    "thinnest_xy_w": [
+     [
+      10.11,
+      18.12,
+      0.718
+     ],
+     [
+      10.13,
+      18.12,
+      0.718
+     ],
+     [
+      10.09,
+      18.1,
+      0.724
+     ],
+     [
+      10.15,
+      18.14,
+      0.724
+     ]
+    ],
+    "hausdorff_vs_footprint_mm": 0.0005
+   },
+   "0.1": {
+    "area_mm2": 992.994,
+    "parts": 1,
+    "width_min_mm": 0.914,
+    "width_p1_mm": 0.947,
+    "thinnest_xy_w": [
+     [
+      36.37,
+      37.74,
+      0.914
+     ],
+     [
+      36.35,
+      37.76,
+      0.914
+     ],
+     [
+      36.39,
+      37.72,
+      0.914
+     ],
+     [
+      36.43,
+      37.68,
+      0.914
+     ]
+    ]
+   },
+   "0.2": {
+    "area_mm2": 1066.489,
+    "parts": 1,
+    "width_min_mm": 1.043,
+    "width_p1_mm": 1.089,
+    "thinnest_xy_w": [
+     [
+      35.27,
+      37.88,
+      1.043
+     ],
+     [
+      35.31,
+      37.88,
+      1.043
+     ],
+     [
+      35.47,
+      37.94,
+      1.043
+     ],
+     [
+      35.43,
+      37.94,
+      1.043
+     ]
+    ]
+   },
+   "1": {
+    "area_mm2": 1110.632,
+    "parts": 1,
+    "width_min_mm": 1.036,
+    "width_p1_mm": 1.089,
+    "thinnest_xy_w": [
+     [
+      35.24,
+      37.87,
+      1.036
+     ],
+     [
+      35.18,
+      37.83,
+      1.036
+     ],
+     [
+      35.22,
+      37.85,
+      1.043
+     ],
+     [
+      35.3,
+      37.89,
+      1.043
+     ]
+    ],
+    "symdiff_vs_outline_full_mm2": 0.00032
+   }
+  }
+ },
+ "thickness_outside_plaque_mm": {
+  "area_mm2": 769.0,
+  "min": 1.4,
+  "p1": 1.429,
+  "plaque_rect_tree_frame": [
+   -4.6,
+   -4.5,
+   90.4,
+   30.5
+  ]
+ },
+ "thickness_over_plaque_mm": {
+  "min": 1.401,
+  "p1": 1.432
+ },
+ "surface_error_mm": {
+  "max": 0.015,
+  "p99": 0.0115,
+  "mean": 0.00289,
+  "refine_history": [
+   [
+    0,
+    43336,
+    1.0662887255350735,
+    0.7360831422936633
+   ],
+   [
+    1,
+    127024,
+    0.7392282954934246,
+    0.2592146618748482
+   ],
+   [
+    2,
+    233512,
+    0.47186450887681075,
+    0.12212551805246086
+   ],
+   [
+    3,
+    291572,
+    0.37299150228496036,
+    0.04826674693066035
+   ],
+   [
+    4,
+    310480,
+    0.24431280295050706,
+    0.02092766196727424
+   ],
+   [
+    5,
+    315610,
+    0.2192587256431322,
+    0.015054874012944591
+   ],
+   [
+    6,
+    317356,
+    0.07100379467010498,
+    0.014464201356438193
+   ],
+   [
+    7,
+    317890,
+    0.13592779636381458,
+    0.014351223215566833
+   ],
+   [
+    8,
+    318408,
+    0.06554734706878662,
+    0.014226671940316547
+   ],
+   [
+    9,
+    318706,
+    0.059229373931875884,
+    0.014193225233445548
+   ],
+   [
+    10,
+    318710,
+    0.022436731215529804,
+    0.014178315180872612
+   ],
+   [
+    11,
+    318764,
+    0.03523242971627294,
+    0.014171476345812709
+   ],
+   [
+    12,
+    318746,
+    0.036200406524153905,
+    0.014189850704059627
+   ],
+   [
+    13,
+    318764,
+    0.05450403690338135,
+    0.014185109779561984
+   ],
+   [
+    14,
+    318856,
+    0.033618390560150146,
+    0.014189142386122462
+   ],
+   [
+    15,
+    318962,
+    0.03330957889557995,
+    0.014173613825361512
+   ],
+   [
+    16,
+    319074,
+    0.022260737419131704,
+    0.014182549043509893
+   ],
+   [
+    17,
+    319018,
+    0.02465260028839289,
+    0.014172913001729823
+   ],
+   [
+    18,
+    318962,
+    0.025429855693474668,
+    0.014180154461477594
+   ],
+   [
+    19,
+    319014,
+    0.04113167524340655,
+    0.01416512230464198
+   ],
+   [
+    20,
+    319062,
+    0.019319178453130803,
+    0.014162556979200172
+   ],
+   [
+    21,
+    319054,
+    0.01736019708766623,
+    0.014158211789359098
+   ],
+   [
+    22,
+    319082,
+    0.014999604539644551,
+    0.014154639467816053
+   ]
+  ],
+  "note": "vertical error of the triangulated top surface against the height grid (every pixel centre at least one pixel inside the outline)"
+ },
+ "checks": {
+  "is_watertight": true,
+  "is_winding_consistent": true,
+  "body_count": 1,
+  "volume_mm3": 2594.7181288193938,
+  "euler_number": -4,
+  "manifold3d_status": "Error.NoError",
+  "manifold3d_volume_mm3": 2594.718143674567,
+  "manifold3d_genus": 3,
+  "top_min_normal_z": 0.028541591414100315,
+  "wall_max_abs_normal_z": 0.0,
+  "chamfer_normal_z_range": [
+   -0.7071067811865566,
+   -0.6983928187840303
+  ],
+  "chamfer_angle_from_horizontal_deg": {
+   "p1": 44.999999999999936,
+   "median": 45.01733821165429,
+   "p99": 45.21247490376127,
+   "min": 44.99999999999927,
+   "max": 45.70179857119574,
+   "area_outside_40_50_mm2": 0.0,
+   "note": "angle of the chamfer faces from the bed plane; < 45 deg would be a flatter overhang"
+  },
+  "bottom_normal_z_max": -0.9999999999999999,
+  "bottom_vertex_z_absmax": 0.0,
+  "downward_faces_outside_bottom_and_chamfer": 0,
+  "min_vertex_z": 0.0,
+  "degenerate_faces": 0,
+  "triangles": 373306,
+  "vertices": 186649
+ },
+ "outline_info": {
+  "contour_area_mm2": 1104.092,
+  "iterations": [
+   {
+    "iter": 0,
+    "thin_points": 1207,
+    "thicken_mm2": 2.308,
+    "close_mm2": 6.699,
+    "open_mm2": 1.333
+   },
+   {
+    "iter": 1,
+    "thin_points": 44,
+    "thicken_mm2": 0.122,
+    "close_mm2": 0.084,
+    "open_mm2": 0.075
+   },
+   {
+    "iter": 2,
+    "thin_points": 7,
+    "thicken_mm2": 0.044,
+    "close_mm2": 0.031,
+    "open_mm2": 0.057
+   },
+   {
+    "iter": 3,
+    "thin_points": 6,
+    "thicken_mm2": 0.087,
+    "close_mm2": 0.027,
+    "open_mm2": 0.041
+   }
+  ],
+  "root_trim_mm2": 1.1619,
+  "gap_fix": [
+   {
+    "round": 0,
+    "xy_image_mm": [
+     68.31,
+     -15.2
+    ],
+    "width_mm": 0.481,
+    "action": "pinch widened: walls pushed back 0.045 mm over 2.64 mm"
+   },
+   {
+    "round": 0,
+    "xy_image_mm": [
+     10.85,
+     -23.15
+    ],
+    "area_mm2": 0.0002,
+    "contacts": 1,
+    "action": "dead end filled"
+   },
+   {
+    "round": 0,
+    "xy_image_mm": [
+     22.27,
+     -41.35
+    ],
+    "area_mm2": 0.00044,
+    "contacts": 1,
+    "action": "dead end filled"
+   },
+   {
+    "round": 0,
+    "xy_image_mm": [
+     27.75,
+     -37.41
+    ],
+    "area_mm2": 0.00023,
+    "contacts": 1,
+    "action": "dead end filled"
+   },
+   {
+    "round": 0,
+    "xy_image_mm": [
+     30.85,
+     -25.88
+    ],
+    "area_mm2": 0.00042,
+    "contacts": 1,
+    "action": "dead end filled"
+   },
+   {
+    "round": 0,
+    "xy_image_mm": [
+     45.66,
+     -17.48
+    ],
+    "area_mm2": 0.00021,
+    "contacts": 1,
+    "action": "dead end filled"
+   },
+   {
+    "round": 0,
+    "xy_image_mm": [
+     59.06,
+     -16.43
+    ],
+    "area_mm2": 0.00023,
+    "contacts": 1,
+    "action": "dead end filled"
+   },
+   {
+    "round": 0,
+    "xy_image_mm": [
+     69.07,
+     -15.69
+    ],
+    "area_mm2": 0.0002,
+    "contacts": 1,
+    "action": "dead end filled"
+   },
+   {
+    "round": 0,
+    "xy_image_mm": [
+     67.37,
+     -15.38
+    ],
+    "area_mm2": 0.00032,
+    "contacts": 1,
+    "action": "dead end filled"
+   },
+   {
+    "round": 0,
+    "xy_image_mm": [
+     67.64,
+     -14.64
+    ],
+    "area_mm2": 0.00028,
+    "contacts": 1,
+    "action": "dead end filled"
+   },
+   {
+    "round": 0,
+    "xy_image_mm": [
+     57.3,
+     -7.8
+    ],
+    "area_mm2": 0.00022,
+    "contacts": 1,
+    "action": "dead end filled"
+   },
+   {
+    "round": 0,
+    "xy_image_mm": [
+     46.21,
+     -14.24
+    ],
+    "area_mm2": 0.00028,
+    "contacts": 1,
+    "action": "dead end filled"
+   },
+   {
+    "round": 0,
+    "xy_image_mm": [
+     40.43,
+     -16.36
+    ],
+    "area_mm2": 0.00024,
+    "contacts": 1,
+    "action": "dead end filled"
+   },
+   {
+    "round": 0,
+    "xy_image_mm": [
+     29.63,
+     -22.61
+    ],
+    "area_mm2": 0.0002,
+    "contacts": 1,
+    "action": "dead end filled"
+   },
+   {
+    "round": 0,
+    "xy_image_mm": [
+     40.84,
+     -30.51
+    ],
+    "area_mm2": 0.00021,
+    "contacts": 1,
+    "action": "dead end filled"
+   },
+   {
+    "round": 1,
+    "xy_image_mm": [
+     38.21,
+     -27.09
+    ],
+    "area_mm2": 0.00021,
+    "contacts": 1,
+    "action": "dead end filled"
+   }
+  ],
+  "gap_fix_net_mm2": -0.1542,
+  "final_area_mm2": 1110.632,
+  "holes": 3,
+  "added_vs_contour_mm2": 8.861,
+  "removed_vs_contour_mm2": 2.321
+ },
+ "mask_info": {
+  "specks_removed_mm2": 0.0,
+  "source_holes_mm2": [
+   0.246,
+   0.195,
+   0.632,
+   14.319
+  ],
+  "source_holes_filled": 2,
+  "flare_px": 855
+ },
+ "height_info": {
+  "spikes_replaced_px": 2016,
+  "stretch_zone_px": 70982,
+  "added_px": 18231
+ },
+ "back_plane_coef": [
+  1.0852746274507488e-08,
+  4.171284479607837e-08,
+  0.034928907037115896
+ ],
+ "parameters": {
+  "glb": "/home/user/blaizeff.github.io/place-cards/source/tree_tripo_meshopt.glb",
+  "cache": null,
+  "regen": false,
+  "res": 0.0003,
+  "out": "/home/user/blaizeff.github.io/place-cards/tree/out",
+  "work": "/tmp/claude-0/-home-user-blaizeff-github-io/24db3fd0-37aa-5abe-8f21-849f3f5e2464/scratchpad/work/agents/tree_final",
+  "scale": 110.7,
+  "cut_world_y": -0.154,
+  "base": 1.3,
+  "rim_relief": 0.9,
+  "gain": 1.5,
+  "max_thick": 3.55,
+  "cap_soft": 0.45,
+  "floor_in": 1.4,
+  "floor_out": 1.4,
+  "floor_soft": 0.3,
+  "rim_band": 2.5,
+  "rim_blend": 3.0,
+  "rim_ext": 4.0,
+  "rim_max_drop": 0.25,
+  "plaque_rect": [
+   -4.6,
+   -4.5,
+   90.4,
+   30.5
+  ],
+  "min_width": 1.05,
+  "width_soft": 0.06,
+  "spur_prune": 1.2,
+  "outline_iters": 4,
+  "width_res": 0.02,
+  "min_gap": 0.55,
+  "gap_piece_min": 0.0002,
+  "pinch_detect": 1.3,
+  "tip_radius": 0.42,
+  "hole_area": 0.3,
+  "chamfer": 0.3,
+  "chamfer_min": 0.15,
+  "chamfer_w0": 1.0,
+  "chamfer_w1": 1.6,
+  "chamfer_slope": 0.5,
+  "root_radius": 0.55,
+  "root_zone": 1.5,
+  "flare_left": 0.9,
+  "flare_height": 3.0,
+  "flare_slope": 0.35,
+  "contour_sigma": 0.8,
+  "outline_tol": 0.001,
+  "spike_thresh": 0.12,
+  "bilateral_ss": 2.0,
+  "bilateral_sr": 0.05,
+  "bilateral_iters": 2,
+  "detail_gain": 0.7,
+  "detail_s1": 0.08,
+  "detail_s2": 0.45,
+  "detail_edge": 0.35,
+  "tol": 0.015,
+  "target_tris": 600000,
+  "min_angle": 28.0,
+  "seed_spacing": 1.0,
+  "max_iters": 40,
+  "max_seg": 0.15,
+  "density": 1.24,
+  "ray_grid": 0.05,
+  "no_previews": false,
+  "no_report": false
+ },
+ "shift_image_to_canonical_mm": [
+  -31.05922750000689,
+  49.08418000488281
+ ]
+}

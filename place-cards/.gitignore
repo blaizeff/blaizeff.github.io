@@ -1,0 +1,4 @@
+__pycache__/
+# Build outputs of the two competing tree variants (scripts kept for reference; the winner lives in tree/out)
+tree/variants/*/out/
+renders/variants/
