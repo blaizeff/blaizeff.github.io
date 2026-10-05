@@ -90,6 +90,10 @@ the user's real guest list: keep it.
      into it.
    * **Foot and names (user decision, 2026-10-05):** `foot_len = 62` (profile, slot and engraving
      unchanged). The left end goes under the trunk and the foot spans about 65 % of a 95 mm plaque.
+     For stability, the foot is deeper: `foot_d = 26`, `foot_top_d = 13`, `slot_y = -1.5`. With 100 %
+     infill feet every card needs at least 35 deg to tip.
+     Border margins stay at 3.0 mm on every side. The top looks tighter only from low camera angles;
+     from a seated guest's eye it reads larger.
      Every name is left-aligned right after the tree with `tree_name_gap = 3`, and `name_gap = 5`
      stays for the border.
    * Pocket: a recess in the ivory top surface shaped like the tree's glue face (footprint ∩ plaque,

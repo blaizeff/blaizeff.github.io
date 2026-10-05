@@ -8,7 +8,8 @@ float32 buffers (crease-angle normals: smooth relief, crisp plaque edges); the w
 0.2 mm layer lines. Lighting: warm low key light with soft shadows, fill, and an image-based
 room environment for the gold reflections; ACES tone mapping.
 
-Views (--views, comma separated): hero (front-left, above, like the reference photo), front,
+Views (--views, comma separated): hero (front-left, above, like the reference photo), seated
+(a guest at the table, looking down about 48 deg), front,
 side, top, closeup (tree and trunk/foot join). PNGs go to --out-dir as
 scene_<name>_<view>.png; with --reference a side-by-side compare_<name>.png is made too.
 
@@ -265,6 +266,8 @@ def view_config(view, world, args):
         tgt[1] -= 2
     elif view == "front":
         az, el, dist = 0, 8, 1.9 * size[0]
+    elif view == "seated":                      # a diner's eye: about 42 cm up, 35 cm from the card
+        az, el, dist = -10, 48, 1.9 * size[0]
     elif view == "side":
         az, el, dist = -88, 8, 1.9 * size[0]
     elif view == "top":
