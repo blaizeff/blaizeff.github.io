@@ -283,7 +283,7 @@ def main():
     datadir = tempfile.mkdtemp(prefix="orca_data_")
     t0 = time.time()
     cmd = ["xvfb-run", "-a", args.orca, "--datadir", datadir, "--slice", str(args.plate), "--outputdir", out, variant]
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = subprocess.run(cmd, capture_output=True, text=True, cwd=out)     # Orca drops debug logs in its cwd
     shutil.rmtree(datadir, ignore_errors=True)
     g = os.path.join(out, f"plate_{args.plate}.gcode")
     res = {"label": args.label, "src": os.path.abspath(args.src), "plate": args.plate,
