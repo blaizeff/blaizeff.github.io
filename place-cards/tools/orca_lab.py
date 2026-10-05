@@ -275,7 +275,7 @@ def main():
     ap.add_argument("--keep-gcode", action="store_true", help="keep the G-code (default: deleted, it is big)")
     args = ap.parse_args()
 
-    out = os.path.join(args.out_dir, args.label)
+    out = os.path.abspath(os.path.join(args.out_dir, args.label))
     shutil.rmtree(out, ignore_errors=True)
     os.makedirs(out)
     variant = os.path.join(out, "variant.3mf")
