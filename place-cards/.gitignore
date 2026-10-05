@@ -2,3 +2,5 @@ __pycache__/
 # Build outputs of the two competing tree variants (scripts kept for reference; the winner lives in tree/out)
 tree/variants/*/out/
 renders/variants/
+# Per-guest plaque exports (tools/build_production.py); the production 3MF carries them
+stl/all/

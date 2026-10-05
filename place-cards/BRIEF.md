@@ -90,12 +90,21 @@ the user's real guest list: keep it.
      into it.
    * **Foot and names (user decision, 2026-10-05):** `foot_len = 62` (profile, slot and engraving
      unchanged). The left end goes under the trunk and the foot spans about 65 % of a 95 mm plaque.
-     For stability, the foot is deeper: `foot_d = 26`, `foot_top_d = 13`, `slot_y = -1.5`. With 100 %
-     infill feet every card needs at least 35 deg to tip.
      Border margins stay at 3.0 mm on every side. The top looks tighter only from low camera angles;
      from a seated guest's eye it reads larger.
-     Every name is left-aligned right after the tree with `tree_name_gap = 3`, and `name_gap = 5`
-     stays for the border.
+     Every name is left-aligned right after the tree with `tree_name_gap = 3`.
+   * **Steel-shot ballast (user decision, 2026-10-05):** no 100 % infill. Each foot has a closed pocket
+     (`ballast_*`, z 1.0 to 6.6, 1.6 walls, 3.4 cm³) that is filled with 1 mm steel shot and glue
+     during an automatic pause (M600 before z 6.8 on the feet plates; the bridge roof prints over it).
+     The weight is in the steel, so the foot is back to the slim 18 → 11 profile with `slot_y = -1.0`
+     at 15 % lightning infill. Filled to 90 %, every card needs at least 25° to tip backwards (58° to
+     the side); empty, 14.5°.
+   * **Name padding (user decision, 2026-10-05):** the gap from the name's right end to the gold border
+     equals the gap above and below the cap height (`name_pad`, 8.5 mm). The plaque follows the name
+     (`min_w = 0`) and only stays longer when it must reach past the foot (short names such as Alex).
+   * **Silk top coat (user decision, 2026-10-05):** the card gold parts (letters and border) print their
+     top surfaces at 20 mm/s and 1000 mm/s² so the silk comes out shiny and smooth. The trees keep their
+     settings ("leaves are perfect").
    * Pocket: a recess in the ivory top surface shaped like the tree's glue face (footprint ∩ plaque,
      offset by about 0.15 clearance, small slivers closed). About 0.6 deep, parameterised, 0 disables.
      It locates the tree exactly for 52 assemblies and hides the glue line. It is below the gold start,

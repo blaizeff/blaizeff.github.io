@@ -14,13 +14,13 @@ computes everything the SCAD cannot work out by itself:
     part of the tree,
   * the name table: ink extents of every guest name (measured from OpenSCAD's own text
     rendering), the left-most position that keeps each name tree_name_gap clear of the tree
-    (the SCAD left-aligns every name there), and where that card's foot goes (see below).
+    (the SCAD left-aligns every name there, and ends the plaque name_pad past it), and where that
+    card's foot goes (see below).
   * the foot position of every card. The foot sits as in the photo (left end flush with the
     trunk's left edge) unless the card would then tip sideways at less than `side_tilt` deg
-    (SCAD) with the foot printed as recommended (`--foot-basis`, default "solid": 100 % infill;
-    the plain plaque has nothing on the left to balance a long name on a 15 % foot). Long names
-    then get the foot slid right just enough, never past the trunk's centre line, so the trunk
-    stays over the foot.
+    (SCAD) with the foot printed as recommended (`--foot-basis`, default "ballast": light infill
+    and the pocket filled with steel shot). Long names then get the foot slid right just enough,
+    never past the trunk's centre line, so the trunk stays over the foot.
     The SCAD engraves a small tick on the plaque's back where the foot's right end goes.
     Masses and centres of mass come from a print model of each part (2D outlines, the user's
     walls / shells / infill, PrusaSlicer-calibrated: see plaque_mass()). The foot prints in
@@ -65,6 +65,7 @@ PROVISIONAL_FOOTPRINT = ("/tmp/claude-0/-home-user-blaizeff-github-io/24db3fd0-3
 TREE_STL_REL = "tree/out/tree.stl"                 # relative to place-cards/ (as the SCAD sees it)
 LORA_TTF = "/usr/share/fonts/truetype/lora/Lora-600.ttf"
 SIMPLIFY = 0.02
+REF_W = 95.0                                       # plaque width for the tree-side geometry (pocket, border cut)
 QS = 16                                            # quad segments for shapely buffers
 
 # ---- print model for masses and centres of mass (tipping)
@@ -76,19 +77,20 @@ RHO = {"ivory": 1.25, "gold": 1.32, "wood": 1.25}
 PLAQUE_PRINT = {"wall": 0.87, "bottom": 0.6, "top": 1.0, "infill": 0.15, "band": 1.0, "flow": 1.050, "res": 0.15}
 GOLD_FLOW = 0.993          # gold name + border (3 walls, solid): G-code mass / solid volume
 TREE_FLOW = 1.037          # silk tree (3 walls, 100 %), same
-# Foot prints: [description, PrusaSlicer settings]. Their mass (as a fraction of a solid foot) and
-# centre of mass (shift from the solid foot's centroid) are measured on the current foot from the
-# G-code (extruded filament per move), and cached in foot_prints.json until the foot changes.
-# Lightning infill sits under the top surfaces, so a light foot also has a high centre of mass.
+# Foot prints: [description, PrusaSlicer settings, ballast]. Their mass (as a fraction of a solid
+# foot) and centre of mass (shift from the solid foot's centroid) are measured on the current foot
+# from the G-code (extruded filament per move), and cached in foot_prints.json until it changes.
+# Ballast: the SCAD's pocket filled to ballast_fill of its height with steel shot (random packing
+# of equal balls fills about 60 % of the space; the glue between them is not counted).
 FOOT_PRINTS = {
-    "test":     ["15 % lightning, 2 walls (the test print)", {"fill_pattern": "lightning", "fill_density": "15%"}],
-    "gyroid15": ["15 % gyroid, 2 walls", {"fill_pattern": "gyroid", "fill_density": "15%"}],
-    "gyroid40": ["40 % gyroid, 4 walls", {"fill_pattern": "gyroid", "fill_density": "40%", "perimeters": 4}],
-    "bottom64": ["15 % lightning, 2 walls, 6.4 mm solid bottom",
-                 {"fill_pattern": "lightning", "fill_density": "15%", "bottom_solid_layers": 32,
-                  "bottom_solid_min_thickness": 6.4}],
-    "solid":    ["100 % infill (recommended)", {"fill_pattern": "rectilinear", "fill_density": "100%"}],
+    "test":    ["15 % lightning, 2 walls (the test print), pocket left empty",
+                {"fill_pattern": "lightning", "fill_density": "15%"}, False],
+    "solid":   ["100 % infill, no shot", {"fill_pattern": "rectilinear", "fill_density": "100%"}, False],
+    "ballast": ["15 % lightning, pocket filled with steel shot (recommended)",
+                {"fill_pattern": "lightning", "fill_density": "15%"}, True],
 }
+SHOT_PACKING = 0.60
+RHO_STEEL = 7.85
 FOOT_CACHE = os.path.join(HERE, "foot_prints.json")
 
 
@@ -199,9 +201,9 @@ def tree_stl_outline(mesh, depth):
     return clean(unary_union(out)) if out else MultiPolygon()
 
 
-def export_foot_stl(scad, tmpdir):
-    path = os.path.join(tmpdir, "foot.stl")
-    subprocess.run(["openscad", "-o", path, "-D", 'make="foot"', scad], check=True,
+def export_foot_stl(scad, tmpdir, what="foot"):
+    path = os.path.join(tmpdir, "%s.stl" % what)
+    subprocess.run(["openscad", "-o", path, "-D", 'make="%s"' % what, scad], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return path
 
@@ -328,10 +330,22 @@ def foot_key(foot_mesh):
     return "vol %.1f bbox %s" % (foot_mesh.volume, " ".join("%.2f" % v for v in np.asarray(foot_mesh.bounds).ravel()))
 
 
-def measure_foot_prints(foot_mesh, tmpdir):
-    """Slice the foot with every FOOT_PRINTS setting: {key: [mass fraction of a solid foot, CoM shift]}.
-    Cached in foot_prints.json for this foot geometry."""
-    key = foot_key(foot_mesh)
+def ballast_load(P, pocket_mesh):
+    """Steel shot in the foot's pocket: (grams, centre of mass in the foot frame, balls of 1 mm)."""
+    if pocket_mesh is None:
+        return 0.0, np.zeros(3), 0
+    fill = float(P.get("ballast_fill", 0.9))
+    lo, hi = pocket_mesh.bounds[0][2], pocket_mesh.bounds[1][2]
+    steel_mm3 = pocket_mesh.volume * fill * SHOT_PACKING
+    c = np.asarray(pocket_mesh.center_mass, float)
+    c[2] = lo + fill * (hi - lo) / 2
+    return steel_mm3 * RHO_STEEL / 1000.0, c, int(steel_mm3 / (math.pi / 6))
+
+
+def measure_foot_prints(foot_mesh, tmpdir, ballast=(0.0, np.zeros(3), 0)):
+    """Slice the foot with every FOOT_PRINTS setting: {key: [mass fraction of a solid foot, CoM shift]}
+    (the steel shot included for the ballast prints). Cached in foot_prints.json for this foot."""
+    key = foot_key(foot_mesh) + " shot %.2f g" % ballast[0]
     try:
         cache = json.load(open(FOOT_CACHE))
     except (OSError, ValueError):
@@ -344,13 +358,16 @@ def measure_foot_prints(foot_mesh, tmpdir):
     solid_g = foot_mesh.volume * RHO["wood"] / 1000.0
     centroid = np.asarray(foot_mesh.center_mass, float)
     prints = {}
-    for k, (desc, settings) in FOOT_PRINTS.items():
+    for k, (desc, settings, shot) in FOOT_PRINTS.items():
         cfg = C.prusa_profile("foot", dict(settings, filament_density=RHO["wood"]))
         gcode = os.path.join(tmpdir, "foot_%s.gcode" % k)
         C.slice_prusa(stl, gcode, cfg, tmpdir, center=(128, 128))
         g, com = C.gcode_mass_com(gcode, foot_mesh, center=(128, 128), density=RHO["wood"])
+        if shot and ballast[0] > 0:
+            com = (g * np.asarray(com) + ballast[0] * ballast[1]) / (g + ballast[0])
+            g += ballast[0]
         prints[k] = [round(g / solid_g, 4), [round(float(v), 2) for v in np.asarray(com) - centroid]]
-        print("  foot print %-9s %s: %.2f g (%.1f %% of solid), CoM shift %s" % (k, desc, g, 100 * g / solid_g, prints[k][1]))
+        print("  foot print %-8s %s: %.2f g (%.1f %% of solid), CoM shift %s" % (k, desc, g, 100 * g / solid_g, prints[k][1]))
     json.dump({"foot": key, "prints": prints}, open(FOOT_CACHE, "w"), indent=1)
     return prints
 
@@ -506,8 +523,8 @@ def hide_left_end(P, F, ty, margin, lo, hi, step=0.05):
 
 def layout(P, F, args, tx, ty):
     """All 2D geometry in the plaque frame for the tree at (tx, ty). Returns a dict of shapely
-    geometries; the right end of the plaque is taken at min_w (wider plaques only differ on the right)."""
-    h, w = P["plaque_h"], P["min_w"]
+    geometries for a reference plaque REF_W wide (plaques of other widths only differ on the right)."""
+    h, w = P["plaque_h"], max(P["min_w"], REF_W)
     y_bot = -h / 2
     res = {"tree_pos": (tx, ty)}
     Fp = affinity.translate(F, tx, ty)
@@ -650,12 +667,12 @@ def name_left_min(G, keepout, x_lo, x_hi, y_shift):
     return hi
 
 
-def name_layout(P, n_ink, left_min):
-    """Same rule as the SCAD: the name starts right after the tree, the plaque grows to the right
-    when the name needs it (name_gap to the border)."""
+def name_layout(P, n_ink, left_min, floor_w=0.0):
+    """Same rule as the SCAD: the name starts right after the tree and the plaque ends name_pad past
+    its right end (inside the border), never shorter than min_w or floor_w (past the foot)."""
     x0, x1 = n_ink
     ink_left = left_min
-    width = max(P["min_w"], ink_left + (x1 - x0) + P["name_gap"] + P["border_w"] + P["border_in"])
+    width = max(P["min_w"], floor_w, ink_left + (x1 - x0) + P["name_pad"] + P["border_w"] + P["border_in"])
     return ink_left, width
 
 
@@ -692,12 +709,11 @@ def build_parser():
     ap.add_argument("--tip", type=float, default=0.3, help="border ends: tips thinner than 2x this are rounded off")
     ap.add_argument("--slab", type=float, default=3.6, help="tree thickness assumed when no tree STL exists")
     ap.add_argument("--side-tilt", type=float, help="sideways tilt every card must survive, deg (default: SCAD side_tilt)")
-    ap.add_argument("--foot-basis", default="solid", choices=sorted(FOOT_PRINTS),
-                    help="foot print the foot positions are worked out for (the recommended 100 %% infill; "
-                         "\"test\" = the light 15 %% lightning test print)")
-    ap.add_argument("--foot-recommended", default="solid", choices=sorted(FOOT_PRINTS),
+    ap.add_argument("--foot-basis", default="ballast", choices=sorted(FOOT_PRINTS),
+                    help="foot print the foot positions are worked out for (default: pocket filled with shot)")
+    ap.add_argument("--foot-recommended", default="ballast", choices=sorted(FOOT_PRINTS),
                     help="recommended foot print, checked against --back-tilt")
-    ap.add_argument("--foot-check", default="test,solid", help="--check: foot prints to report (comma list)")
+    ap.add_argument("--foot-check", default="test,ballast", help="--check: foot prints to report (comma list)")
     ap.add_argument("--back-tilt", type=float, default=15.0,
                     help="--check: backward tilt every card must survive with the recommended foot, deg")
     ap.add_argument("--check", action="store_true", help="verify every name with OpenSCAD 2D exports")
@@ -710,8 +726,8 @@ def main():
     args = build_parser().parse_args()
 
     P = parse_scad(args.scad)
-    need = ["plaque_h", "plaque_t", "min_w", "corner", "border_in", "border_w", "border_r", "name_gap", "cap_h",
-            "cap_ratio", "font", "lean", "slot_y", "foot_h", "slot_fit", "slot_depth", "foot_len",
+    need = ["plaque_h", "plaque_t", "min_w", "corner", "border_in", "border_w", "border_r", "cap_h",
+            "cap_ratio", "font", "lean", "slot_y", "foot_h", "slot_fit", "slot_depth", "foot_len", "name_pad",
             "pocket_depth", "pocket_clear", "border_gap", "trunk_gap", "tree_name_gap", "names"]
     miss = [k for k in need if k not in P]
     if miss:
@@ -766,14 +782,20 @@ def main():
               "position to +%.1f mm)" % (tx, ty, gap, P["trunk_gap"], foot_x_cap - foot_x))
 
         R = layout(P, F, args, tx, ty)
+        floor_w = foot_x + P["foot_len"] / 2 + P["corner"] + 1      # the SCAD's raw(): always past the foot
 
         # print model for the tipping checks: tree and foot masses, the foot's bed contact
         side = args.side_tilt if args.side_tilt is not None else float(P.get("side_tilt", 10.0))
-        prints = measure_foot_prints(foot, tmp)
+        pocket = trimesh.load(export_foot_stl(args.scad, tmp, "ballast"), force="mesh") if P.get("ballast") else None
+        shot = ballast_load(P, pocket)
+        if shot[0]:
+            print("ballast pocket: %.0f mm3, filled to %d %%: %.1f g of steel shot (about %d balls of 1 mm) per foot"
+                  % (pocket.volume, 100 * P.get("ballast_fill", 0.9), shot[0], shot[2]))
+        prints = measure_foot_prints(foot, tmp, shot)
         stab = {"tree": tree_mass(tree_mesh, F, args.slab), "box": contact_box(foot), "side": side,
                 "feet": {k: foot_mass(foot, k, prints) for k in FOOT_PRINTS}, "basis": args.foot_basis,
                 "recommended": args.foot_recommended, "back": args.back_tilt,
-                "foot_x": foot_x, "foot_x_cap": foot_x_cap}
+                "foot_x": foot_x, "foot_x_cap": foot_x_cap, "floor_w": floor_w}
 
         # ---- names
         names = []
@@ -786,8 +808,8 @@ def main():
         for n in names:
             g = G[n]
             x0, _, x1, _ = g.bounds
-            lm = name_left_min(g, R["name_keepout"], 0.0, P["min_w"], y_shift)
-            ink_left, width = name_layout(P, (x0, x1), lm)
+            lm = name_left_min(g, R["name_keepout"], 0.0, 300.0, y_shift)
+            ink_left, width = name_layout(P, (x0, x1), lm, floor_w)
             # foot position for this card (the plaque, gold and tree as printed)
             outline, pocket, border = card_geometry(P, R, width)
             gold = unary_union([border, affinity.translate(g, ink_left - x0, y_shift)])
@@ -943,8 +965,8 @@ def check(P, R, table, tmp, args, stab):
         bad = bad_by[n]
         if d_pocket < P["tree_name_gap"] - 0.02 or d_tree < P["tree_name_gap"] - 0.02:
             bad.append("name too close to tree")
-        if d_right < P["name_gap"] - 0.05:
-            bad.append("name too close to border")
+        if abs(d_right - P["name_pad"]) > 0.05 and not (d_right > P["name_pad"] and abs(width - stab["floor_w"]) < 0.05):
+            bad.append("right padding %.2f, not %.2f" % (d_right, P["name_pad"]))
         if bd.intersects(pk) or d_border < P["border_gap"] - 0.02:
             bad.append("border touches pocket")
         if pieces != 1:

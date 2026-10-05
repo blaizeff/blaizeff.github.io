@@ -4,14 +4,14 @@
 // The tree is a separate gold print (tree/out/tree.stl), glued into a shallow pocket on the left.
 //   make = "plaques"  -> the cards (part = "both", "base" = white, "gold" = gold)
 //   make = "feet"     -> the slotted feet (wood)
-//   make = "foot"     -> one foot
+//   make = "foot"     -> one foot ("ballast" -> its steel-shot pocket, for checks)
 //   make = "test"     -> 2 cards + 2 feet, to check the finish before the full run
 //   make = "assembly" -> one card standing in its foot with the tree, for previews and checks
 // One card: make = "plaques" with names = ["Sophie"].
 // Tree placement, pocket, name and foot positions come from tree_data.scad, written by
 // tools/card_layout.py: re-run it after changing the tree, the names or a plaque parameter.
 // Assembly: slide each foot until its RIGHT end lines up with the small tick on the plaque's back.
-// Print the feet with 100 % infill: a heavy foot keeps the leaning card from tipping backwards.
+// Feet: the print pauses so each foot's pocket can be filled with steel shot and glue (ballast).
 // Font: Lora SemiBold (free on Google Fonts). Save this file as UTF-8 so accents render.
 
 include <tree_data.scad>
@@ -37,7 +37,7 @@ names = [
 font        = "Lora:style=SemiBold";  // Lora SemiBold: elegant, strokes thick enough to print cleanly
 cap_h       = 10;      // height of a capital letter, identical on every card
 cap_ratio   = 0.972;   // capital height / font size for Lora (re-measure if you change font)
-min_w       = 95;      // plaque width; long names make the plaque wider, never the text smaller
+min_w       = 0;       // shortest plaque; 0: the plaque follows the name (it always reaches past the foot)
 plaque_h    = 35;
 plaque_t    = 2.4;     // ivory body (12 layers at 0.2)
 gold_h      = 1.0;     // raised gold name and border: tall enough to really stand out
@@ -47,10 +47,10 @@ corner      = 4;       // plaque corner radius
 border_in   = 3;       // border distance from the plaque edge
 border_w    = 1.0;     // border line width (2 extrusion lines)
 border_r    = 3;       // border corner radius
-name_gap    = 5;       // minimum space between the name and the border
+name_pad    = plaque_h / 2 - border_in - border_w - cap_h / 2;  // space right of the name: as much as above and below the capitals
 edge_chamfer = 0.4;    // 45 deg chamfer on the bed-side edge: no elephant foot, crisp outline
 edge_fillet  = 0.8;    // rounded top edge: softer to the touch (and a lead-in for the slot)
-pitch       = [max(130, plaque_w_max + 6), plaque_h + 8];  // long names make the plaque wider
+pitch       = [plaque_w_max + 6, plaque_h + 8];  // long names make the plaque wider
 
 // ---------- tree ----------
 // pocket_clear, border_gap and trunk_gap are used by tools/card_layout.py (re-run it after a change)
@@ -70,20 +70,30 @@ engrave_bold  = 0.03;  // a hair of extra weight so the finest serifs still carv
 engrave_depth = 0.6;   // depth measured square to the face
 engrave_angle = 45;    // carved downward at 45 deg: no overhanging ceilings inside the letters
 
-feet        = 55;      // 52 guests + 3 spares: 3 x 8 per 256 mm plate, so three plates
+feet        = 55;      // 52 guests + 3 spares
 foot_len    = 62;      // from under the trunk to about 2/3 along a 95 mm plaque: the card sits centred
-foot_d      = 26;      // depth at the bottom: a wide base, so the leaning card needs 35 deg to tip any way
-foot_top_d  = 13;      // depth at the top (trapezoid profile), room for a sturdy wall in front of the slot
+foot_d      = 18;      // depth at the bottom (slim: the steel shot in the pocket gives the weight)
+foot_top_d  = 11;      // depth at the top (trapezoid profile)
 foot_h      = 13;      // a little taller: room for B&K + date on the front
 lean        = 22;      // plaque leans back: readable from a seat and when walking past
 slot_fit    = 0.2;     // total clearance (the 0.2 test foot fit best)
 slot_depth  = 5;       // how far the plaque sits in the foot, measured along the plaque
-slot_y      = -1.5;    // slot slightly forward so the leaning plaque balances over the foot
+slot_y      = -1.0;    // slot slightly forward so the leaning plaque balances over the foot
 lip_h       = 2.2;     // the front wall grips only this much; above it a channel
 channel     = gold_h + 0.4;  // clears the raised gold border hidden behind the foot
 foot_gap    = 4;
 foot_chamfer = 0.5;    // bed-side chamfer on the foot
 foot_fillet  = 1.0;    // rounded top edges on the foot
+
+// ---------- ballast in the foot ----------
+// The feet print with light infill around a pocket. The print pauses at ballast_top: fill every
+// pocket with steel shot and a little glue, level it just under the rim, resume, and the roof
+// closes over it. The heavy, low pocket keeps the leaning card from tipping, so the foot stays slim.
+ballast       = true;
+ballast_floor = 1.0;   // solid floor under the shot (5 layers at 0.2)
+ballast_top   = 6.6;   // on a layer boundary, under the slot with a roof to spare: the print pauses here
+ballast_wall  = 1.6;   // walls around the pocket; the front one also clears the engraving
+ballast_fill  = 0.9;   // fill to this fraction of the pocket's height: the nozzle stays clear of the shot
 
 // ---------- where the foot goes (tools/card_layout.py works it out per name) ----------
 // The foot sits as in the photo, left end flush with the trunk, unless the card would then tip
@@ -118,13 +128,14 @@ function text_x(n) =
 module label(n)
   translate([text_x(n), -cap_h / 2]) text(n, size = size, font = font, halign = "left", valign = "baseline");
 
-// Raw rectangle from the plaque's left end: 95 x 35, or longer to the right if the name needs it
+// Raw rectangle from the plaque's left end to name_pad past the name (never shorter than min_w,
+// and always past the foot's right end, so its tick sits on the straight bottom edge)
 module raw(n)
   hull() {
-    translate([0, -plaque_h / 2]) square([min_w, plaque_h]);
+    translate([0, -plaque_h / 2]) square([max(min_w, foot_x_photo + foot_len / 2 + corner + 1), plaque_h]);
     minkowski() {
       hull() scale([1, 0.001]) label(n);
-      square([2 * (border_in + border_w + name_gap), plaque_h], center = true);
+      square([2 * (border_in + border_w + name_pad), plaque_h], center = true);
     }
   }
 
@@ -232,11 +243,25 @@ module foot(fit = slot_fit, tag = "") {
       translate([-foot_len, -w / 2 - channel, -slot_depth + lip_h]) cube([2 * foot_len, channel + 0.01, slot_depth + 10]);
     }
     engraving();
+    if (ballast) ballast_pocket();
     if (tag != "")
       translate([-foot_len / 2 + 0.5, 0, foot_h * 0.42]) rotate([90, 0, -90])
         linear_extrude(1) text(tag, size = 3.6, font = font, halign = "center", valign = "center");
   }
 }
+
+// Section of the foot at height z, as hulled above (between the bed chamfer and the top fillet)
+function foot_depth(z) = foot_d - (foot_d - foot_top_d) * z / foot_h;
+module foot_section(z) offset(r = 1.5) square([foot_len - 3, foot_depth(z) - 3], center = true);
+
+// Straight-walled pocket under the slot, inside the foot's section at its top
+module ballast_pocket()
+  translate([0, 0, ballast_floor]) linear_extrude(ballast_top - ballast_floor)
+    offset(delta = -ballast_wall) intersection() {
+      foot_section(ballast_top);
+      translate([-foot_len, -foot_depth(ballast_top) / 2 + engrave_depth + 0.3])
+        square([2 * foot_len, foot_d]);
+    }
 
 // The glued tree: the real print when it exists, else its flat outline as a stand-in
 module tree_model() {
@@ -262,6 +287,8 @@ if (make == "plaques") {
     translate([(i % cols) * pitch[0], -floor(i / cols) * pitch[1], 0]) plaque(names[i]);
 } else if (make == "foot") {
   foot();
+} else if (make == "ballast") {
+  ballast_pocket();
 } else if (make == "feet") {
   cols = floor((256 + foot_gap) / (foot_len + foot_gap));   // as many as fit across the bed
   for (i = [0 : feet - 1])
@@ -280,5 +307,5 @@ if (make == "plaques") {
 } else {
   for (i = [0 : 1]) translate([(i - 0.5) * (foot_len + 8), 0, 0]) foot();
   for (i = [0 : len(test_names) - 1])
-    translate([-min_w / 2, foot_d / 2 + 8 + plaque_h / 2 + i * (plaque_h + 6), 0]) plaque(test_names[i]);
+    translate([-50, foot_d / 2 + 8 + plaque_h / 2 + i * (plaque_h + 6), 0]) plaque(test_names[i]);
 }

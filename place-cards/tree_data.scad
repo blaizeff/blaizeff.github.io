@@ -17,59 +17,59 @@ border_end_top = [45.65, 14.00];
 
 // Names: [name, ink x0, ink x1 (text origin, halign left), left-most ink x clear of the tree (tree frame),
 //         foot centre x (tree frame): the photo position, or slid right so the card stands at least
-//         10 deg sideways on the foot printed 100 % infill (recommended)]
+//         10 deg sideways on the foot printed 15 % lightning, pocket filled with steel shot (recommended)]
 name_table = [
-  ["Patrick", 0.743, 47.618, 24.191, 26.22],   // plaque 95.0 mm
-  ["Clément", 0.557, 56.121, 22.295, 26.22],   // plaque 95.0 mm
-  ["Lise", 0.743, 26.585, 24.191, 26.22],   // plaque 95.0 mm
-  ["Benoit", 0.743, 43.577, 24.191, 26.22],   // plaque 95.0 mm
-  ["Nancy", 0.729, 41.457, 24.191, 26.22],   // plaque 95.0 mm
-  ["Josée", 0.000, 35.055, 22.521, 26.22],   // plaque 95.0 mm
-  ["David", 0.743, 37.392, 24.191, 26.22],   // plaque 95.0 mm
-  ["Sophie", 0.700, 44.698, 23.414, 26.22],   // plaque 95.0 mm
-  ["Mélanie", 0.657, 52.400, 24.046, 26.22],   // plaque 95.0 mm
-  ["Alexandre", 0.014, 66.341, 20.109, 26.22],   // plaque 99.6 mm
-  ["Johnny", 0.000, 47.206, 22.521, 26.22],   // plaque 95.0 mm
-  ["Suzanne", 0.700, 55.847, 23.414, 26.22],   // plaque 95.0 mm
-  ["Sandra", 0.700, 46.133, 23.414, 26.22],   // plaque 95.0 mm
-  ["Lucienne", 0.743, 60.703, 24.191, 26.22],   // plaque 97.3 mm
-  ["Yvon", 0.000, 32.311, 24.191, 26.22],   // plaque 95.0 mm
-  ["Manon", 0.657, 45.888, 24.046, 26.22],   // plaque 95.0 mm
-  ["Hassan", 0.743, 47.493, 24.191, 26.22],   // plaque 95.0 mm
-  ["Melody", 0.657, 48.671, 24.046, 26.22],   // plaque 95.0 mm
-  ["Noémie", 0.729, 50.265, 24.191, 26.22],   // plaque 95.0 mm
-  ["Charlotte", 0.557, 62.601, 22.295, 26.22],   // plaque 97.5 mm
-  ["Emilie", 0.743, 41.502, 24.191, 26.22],   // plaque 95.0 mm
-  ["Amélie", 0.014, 45.102, 20.115, 26.22],   // plaque 95.0 mm
-  ["Samuel", 0.700, 48.065, 23.414, 26.22],   // plaque 95.0 mm
-  ["Mylène", 0.657, 48.116, 24.046, 26.22],   // plaque 95.0 mm
-  ["Audrey", 0.014, 47.317, 20.115, 26.22],   // plaque 95.0 mm
-  ["Michael", 0.657, 52.112, 24.046, 26.22],   // plaque 95.0 mm
-  ["Anushka", 0.014, 56.724, 20.115, 26.22],   // plaque 95.0 mm
-  ["Philomène", 0.743, 70.010, 24.191, 26.22],   // plaque 106.6 mm
-  ["Logan", 0.743, 39.888, 24.191, 26.22],   // plaque 95.0 mm
-  ["Max-Antoine", 0.657, 85.764, 24.046, 26.22],   // plaque 122.3 mm
-  ["Brandon", 0.743, 56.270, 24.191, 26.22],   // plaque 95.0 mm
-  ["Victor", 0.057, 41.108, 24.191, 26.22],   // plaque 95.0 mm
-  ["Prabh", 0.743, 38.865, 24.191, 26.22],   // plaque 95.0 mm
-  ["Ashwin", 0.014, 48.413, 20.115, 26.22],   // plaque 95.0 mm
-  ["Patric", 0.743, 39.491, 24.191, 26.22],   // plaque 95.0 mm
-  ["Holly", 0.743, 34.675, 24.191, 26.22],   // plaque 95.0 mm
-  ["Zachary", 0.586, 53.234, 24.006, 26.22],   // plaque 95.0 mm
-  ["Audrey-Anne", 0.014, 87.160, 20.115, 26.22],   // plaque 120.4 mm
-  ["France", 0.743, 44.628, 24.191, 26.22],   // plaque 95.0 mm
-  ["Richard", 0.743, 51.305, 24.191, 26.22],   // plaque 95.0 mm
-  ["Alex", 0.014, 28.322, 20.115, 26.22],   // plaque 95.0 mm
-  ["Coralie", 0.557, 47.084, 22.295, 26.22],   // plaque 95.0 mm
-  ["Julie", 0.000, 30.046, 22.521, 26.22],   // plaque 95.0 mm
-  ["Anthony", 0.014, 56.220, 20.115, 26.22],   // plaque 95.0 mm
-  ["Anosha", 0.014, 48.240, 20.115, 26.22],   // plaque 95.0 mm
-  ["Laura", 0.743, 37.733, 24.191, 26.22],   // plaque 95.0 mm
-  ["Melissa", 0.657, 49.621, 24.046, 26.22],   // plaque 95.0 mm
-  ["Cédric", 0.557, 43.496, 22.295, 26.22],   // plaque 95.0 mm
+  ["Patrick", 0.743, 47.618, 24.192, 26.22],   // plaque 87.7 mm
+  ["Clément", 0.557, 56.121, 22.297, 26.22],   // plaque 94.5 mm
+  ["Lise", 0.743, 26.585, 24.192, 26.22],   // plaque 66.7 mm
+  ["Benoit", 0.743, 43.577, 24.192, 26.22],   // plaque 83.7 mm
+  ["Nancy", 0.729, 41.457, 24.192, 26.22],   // plaque 81.6 mm
+  ["Josée", 0.000, 35.055, 22.526, 26.22],   // plaque 74.3 mm
+  ["David", 0.743, 37.392, 24.192, 26.22],   // plaque 77.5 mm
+  ["Sophie", 0.700, 44.698, 23.414, 26.22],   // plaque 84.1 mm
+  ["Mélanie", 0.657, 52.400, 24.046, 26.22],   // plaque 92.5 mm
+  ["Alexandre", 0.014, 66.341, 20.118, 26.22],   // plaque 103.1 mm
+  ["Johnny", 0.000, 47.206, 22.526, 26.22],   // plaque 86.4 mm
+  ["Suzanne", 0.700, 55.847, 23.414, 26.22],   // plaque 95.2 mm
+  ["Sandra", 0.700, 46.133, 23.414, 26.22],   // plaque 85.5 mm
+  ["Lucienne", 0.743, 60.703, 24.192, 26.22],   // plaque 100.8 mm
+  ["Yvon", 0.000, 32.311, 24.192, 26.22],   // plaque 73.2 mm
+  ["Manon", 0.657, 45.888, 24.046, 26.22],   // plaque 86.0 mm
+  ["Hassan", 0.743, 47.493, 24.192, 26.22],   // plaque 87.6 mm
+  ["Melody", 0.657, 48.671, 24.046, 26.22],   // plaque 88.7 mm
+  ["Noémie", 0.729, 50.265, 24.192, 26.22],   // plaque 90.4 mm
+  ["Charlotte", 0.557, 62.601, 22.297, 26.22],   // plaque 101.0 mm
+  ["Emilie", 0.743, 41.502, 24.192, 26.22],   // plaque 81.6 mm
+  ["Amélie", 0.014, 45.102, 20.118, 26.22],   // plaque 81.9 mm
+  ["Samuel", 0.700, 48.065, 23.414, 26.22],   // plaque 87.5 mm
+  ["Mylène", 0.657, 48.116, 24.046, 26.22],   // plaque 88.2 mm
+  ["Audrey", 0.014, 47.317, 20.118, 26.22],   // plaque 84.1 mm
+  ["Michael", 0.657, 52.112, 24.046, 26.22],   // plaque 92.2 mm
+  ["Anushka", 0.014, 56.724, 20.118, 26.22],   // plaque 93.5 mm
+  ["Philomène", 0.743, 70.010, 24.192, 26.22],   // plaque 110.1 mm
+  ["Logan", 0.743, 39.888, 24.192, 26.22],   // plaque 80.0 mm
+  ["Max-Antoine", 0.657, 85.764, 24.046, 26.22],   // plaque 125.8 mm
+  ["Brandon", 0.743, 56.270, 24.192, 26.22],   // plaque 96.4 mm
+  ["Victor", 0.057, 41.108, 24.192, 26.22],   // plaque 81.9 mm
+  ["Prabh", 0.743, 38.865, 24.192, 26.22],   // plaque 79.0 mm
+  ["Ashwin", 0.014, 48.413, 20.118, 26.22],   // plaque 85.2 mm
+  ["Patric", 0.743, 39.491, 24.192, 26.22],   // plaque 79.6 mm
+  ["Holly", 0.743, 34.675, 24.192, 26.22],   // plaque 74.8 mm
+  ["Zachary", 0.586, 53.234, 24.009, 26.22],   // plaque 93.3 mm
+  ["Audrey-Anne", 0.014, 87.160, 20.118, 26.22],   // plaque 123.9 mm
+  ["France", 0.743, 44.628, 24.192, 26.22],   // plaque 84.8 mm
+  ["Richard", 0.743, 51.305, 24.192, 26.22],   // plaque 91.4 mm
+  ["Alex", 0.014, 28.322, 20.118, 26.22],   // plaque 66.4 mm
+  ["Coralie", 0.557, 47.084, 22.297, 26.22],   // plaque 85.5 mm
+  ["Julie", 0.000, 30.046, 22.517, 26.22],   // plaque 69.2 mm
+  ["Anthony", 0.014, 56.220, 20.118, 26.22],   // plaque 93.0 mm
+  ["Anosha", 0.014, 48.240, 20.118, 26.22],   // plaque 85.0 mm
+  ["Laura", 0.743, 37.733, 24.192, 26.22],   // plaque 77.9 mm
+  ["Melissa", 0.657, 49.621, 24.046, 26.22],   // plaque 89.7 mm
+  ["Cédric", 0.557, 43.496, 22.297, 26.22],   // plaque 81.9 mm
 ];
 name_clear_x = 25.008;   // fallback for names not in the table: left-most ink x (tree frame)
-plaque_w_max = 122.33;   // widest plaque in the table (Max-Antoine)
+plaque_w_max = 125.83;   // widest plaque in the table (Max-Antoine)
 
 tree_outline = [[
   [-10.491,23.192],[-10.574,24.040],[-10.550,24.800],[-10.524,24.909],[-10.347,25.112],[-9.633,25.693],[-9.178,26.223],[-8.906,26.727],

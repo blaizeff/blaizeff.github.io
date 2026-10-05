@@ -68,6 +68,8 @@ TREE_PART_EXTRA = [("outer_wall_speed", "30"), ("inner_wall_speed", "50"), ("top
                    ("sparse_infill_density", "100%"), ("top_surface_pattern", "concentric"),
                    ("internal_solid_infill_pattern", "concentric"), ("ironing_type", "no ironing"),
                    ("wall_loops", "3"), ("only_one_wall_top", "0"), ("filter_out_gap_fill", "0")]
+# The card's gold name and border: slow, gentle top coat so the silk comes out glossy and smooth
+CARD_GOLD_TOP = [("top_surface_speed", "20"), ("top_surface_acceleration", "1000")]
 DEFAULT_CARD_OBJECT = [("extruder", "1"), ("layer_height", "0.2"), ("seam_position", "back"),
                        ("wall_generator", "arachne"), ("precise_outer_wall", "1")]
 DEFAULT_FOOT_OBJECT = [("extruder", "3"), ("layer_height", "0.2"), ("sparse_infill_pattern", "lightning")]
@@ -165,16 +167,18 @@ def load_items(args, roles):
         z0, z1 = float(mg.bounds[0, 2]), float(mg.bounds[1, 2])
         items.append(Item(
             key=f"card:{name}", name=name + args.card_suffix, kind="card",
-            parts=[("Ivory plaque", mb, roles["ivory_part"], base), ("Gold name + border", mg, roles["gold_part"], gold)],
+            parts=[("Ivory plaque", mb, roles["ivory_part"], base),
+                   ("Gold name + border", mg, merge_meta(roles["gold_part"], CARD_GOLD_TOP), gold)],
             obj_meta=roles["card_object"], filaments={1, 2},
             layer_ranges=[(z0, z1, args.gold_layer)]))
     if args.tree:
         mt = C.load_mesh(args.tree)
         part_meta = merge_meta(roles["gold_part"], TREE_PART_EXTRA)
         obj_meta = merge_meta([], TREE_OBJECT_META + [("layer_height", f"{args.tree_layer:g}")])
-        for i in range(args.trees):
+        for i in range(args.trees + (args.spares if args.trees else 0)):
             items.append(Item(key="tree", name=f"Tree {i + 1:02d}", kind="tree",
                               parts=[("Gold tree", mt, part_meta, args.tree)], obj_meta=obj_meta, filaments={2}))
+            items[-1].spare = i >= args.trees
     if args.foot:
         mf = C.load_mesh(args.foot)
         foot_meta = roles["foot_object"]
@@ -182,10 +186,11 @@ def load_items(args, roles):
             # a heavy foot keeps the leaning card from tipping backwards (lightning cannot do 100 %)
             foot_meta = merge_meta(foot_meta, [("sparse_infill_density", args.foot_infill),
                                                ("sparse_infill_pattern", "zig-zag")])
-        for i in range(args.feet):
+        for i in range(args.feet + (args.spares if args.feet else 0)):
             items.append(Item(key="foot", name=f"Foot {i + 1:02d}", kind="foot",
                               parts=[(f"Foot {i + 1:02d}", mf, roles["foot_part"], args.foot)],
                               obj_meta=foot_meta, filaments={3}))
+            items[-1].spare = i >= args.feet
     return items
 
 
@@ -289,6 +294,249 @@ def plan_plates(items, args, bed):
     return out
 
 
+# ---------------------------------------------------------------- nesting (real footprints)
+NEST_RES = 0.25            # mm per pixel of the plate raster
+SIL_RES = 0.1              # mm per pixel when tracing a part's silhouette
+TOWER_CLEAR = 7.0          # prime tower brim (3 mm) + ribs + clearance around its 35 mm square
+_SIL = {}
+
+
+def silhouette(it):
+    """Outline of the item seen from above (all parts), as polygons [N x 2] in mm around the item's
+    bbox centre. Triangles are filled one by one (an even-odd fill would cancel overlaps)."""
+    if it.key in _SIL:
+        return _SIL[it.key]
+    cx, cy = (it.lo[0] + it.hi[0]) / 2, (it.lo[1] + it.hi[1]) / 2
+    tris = []
+    for _, mesh, _, _ in it.parts:
+        v = np.asarray(mesh.vertices, float)[:, :2] - [cx, cy]
+        f = np.asarray(mesh.faces)
+        tris.append(v[f[np.abs(mesh.face_normals[:, 2]) > 1e-6]])
+    polys = trace_outline(np.concatenate(tris))
+    _SIL[it.key] = polys
+    return polys
+
+
+def trace_outline(T):
+    """Outer outline(s) of 2D triangles T [n x 3 x 2] (mm), traced on a SIL_RES raster."""
+    import cv2
+    lo = T.reshape(-1, 2).min(0) - 1.0
+    hi = T.reshape(-1, 2).max(0) + 1.0
+    W, H = int((hi[0] - lo[0]) / SIL_RES) + 2, int((hi[1] - lo[1]) / SIL_RES) + 2
+    img = np.zeros((H, W), np.uint8)
+    for t in np.round((T - lo) / SIL_RES * 16).astype(np.int32):
+        cv2.fillConvexPoly(img, t, 1, lineType=cv2.LINE_8, shift=4)
+    cs, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # pixel corners -> mm; half a pixel out so the outline never undercuts the part
+    return [c[:, 0, :].astype(float) * SIL_RES + lo for c in cs if len(c) >= 3]
+
+
+def rot2(deg):
+    a = math.radians(deg)
+    return np.array([[math.cos(a), -math.sin(a)], [math.sin(a), math.cos(a)]])
+
+
+def footprint_mask(it, angle, grow, res=NEST_RES):
+    """The item's silhouette turned by `angle` (about its bbox centre) and grown by `grow` mm, as a
+    raster [row = y, col = x]. Returns (mask, lo): lo = item-frame mm of pixel (0, 0)'s corner."""
+    import cv2
+    key = (it.key, round(angle, 4), round(grow, 4), res)
+    if key in _SIL:
+        return _SIL[key]
+    polys = [p @ rot2(angle).T for p in silhouette(it)]
+    pad = grow + 3 * res
+    allp = np.vstack(polys)
+    lo = allp.min(0) - pad
+    hi = allp.max(0) + pad
+    W, H = int(math.ceil((hi[0] - lo[0]) / res)) + 1, int(math.ceil((hi[1] - lo[1]) / res)) + 1
+    img = np.zeros((H, W), np.uint8)
+    cv2.fillPoly(img, [np.round((p - lo) / res * 16).astype(np.int32) for p in polys], 1, lineType=cv2.LINE_8, shift=4)
+    r = int(math.ceil(grow / res))                   # outline pixels are filled where touched: no undercut
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
+    img = cv2.dilate(img, k)
+    out = (img.astype(bool), lo)
+    _SIL[key] = out
+    return out
+
+
+def bed_exclusions(ps):
+    """Bed areas the printer profile forbids (bed_exclude_area), as rectangles in bed mm."""
+    pts = []
+    for v in ps.get("bed_exclude_area") or []:
+        try:
+            x, y = str(v).split("x")
+            pts.append((float(x), float(y)))
+        except ValueError:
+            pass
+    if len(pts) >= 3:
+        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+        if max(xs) - min(xs) > 0 and max(ys) - min(ys) > 0:
+            return [(min(xs), min(ys), max(xs), max(ys))]
+    return []
+
+
+def tower_spots(bed, margin, excl, w):
+    """Where the prime tower can go: the four corners (its 35 mm square + clearance), skipping the
+    excluded bed area. Returns [(keep-out rectangle, (wipe_tower_x, wipe_tower_y))]."""
+    s = w + 2 * TOWER_CLEAR
+    out = []
+    for cx, cy in ((0, 0), (1, 0), (0, 1), (1, 1)):
+        x0 = margin if cx == 0 else bed[0] - margin - s
+        y0 = margin if cy == 0 else bed[1] - margin - s
+        for ex in excl:                                       # slide up / left off the excluded area
+            if x0 < ex[2] and x0 + s > ex[0] and y0 < ex[3] and y0 + s > ex[1]:
+                y0 = ex[3] + 1.0 if cy == 0 else y0
+        out.append(((x0, y0, x0 + s, y0 + s), (round(x0 + TOWER_CLEAR, 1), round(y0 + TOWER_CLEAR, 1))))
+    return out
+
+
+class Plate:
+    """Occupancy raster of one bed (row = y)."""
+
+    def __init__(self, bed, margin, grow, blocks, res=NEST_RES):
+        self.res = res
+        self.H, self.W = int(round(bed[1] / res)), int(round(bed[0] / res))
+        self.occ = np.zeros((self.H, self.W), bool)
+        e = max(0, int(math.floor((margin - grow) / res)))   # grown parts may come this close to the edge
+        if e:
+            self.occ[:e, :] = self.occ[-e:, :] = True
+            self.occ[:, :e] = self.occ[:, -e:] = True
+        for x0, y0, x1, y1 in blocks:                         # excluded area, prime tower
+            g = grow + res
+            c0, c1 = int(math.floor((x0 - g) / res)), int(math.ceil((x1 + g) / res))
+            r0, r1 = int(math.floor((y0 - g) / res)), int(math.ceil((y1 + g) / res))
+            self.occ[max(r0, 0):max(r1, 0), max(c0, 0):max(c1, 0)] = True
+        self.placed = []
+
+    def try_place(self, it, angles, grow, rule):
+        """Best spot for `it` over `angles` by `rule`: "bl" lowest then leftmost, "lb" leftmost then
+        lowest, "contact" most outline touching parts / edges already there (tight nesting of
+        irregular shapes), then lowest. Places it and returns True, or returns False."""
+        import cv2
+        from scipy.signal import fftconvolve
+        occ = self.occ.astype(np.float32)
+        best = None
+        for a in angles:
+            m, lo = footprint_mask(it, a, grow, self.res)
+            if m.shape[0] > self.H or m.shape[1] > self.W:
+                continue
+            hit = fftconvolve(occ, m[::-1, ::-1].astype(np.float32), mode="valid")
+            free = np.argwhere(hit < 0.5)
+            if not len(free):
+                continue
+            rows = np.nonzero(m.any(1))[0]
+            cols = np.nonzero(m.any(0))[0]
+            r, c = free[:, 0] + rows[0], free[:, 1] + cols[0]
+            if rule == "contact":
+                ring = cv2.dilate(m.astype(np.uint8), np.ones((5, 5), np.uint8)).astype(bool) & ~m
+                touch = fftconvolve(occ, ring[::-1, ::-1].astype(np.float32), mode="valid")
+                key = -np.round(touch[free[:, 0], free[:, 1]]).astype(np.int64) * 10 ** 10 + r * 100000 + c
+            else:
+                key = r * 100000 + c if rule == "bl" else c * 100000 + r
+            i = int(np.argmin(key))
+            cand = (int(key[i]), a, int(free[i, 0]), int(free[i, 1]), m, lo)
+            if best is None or cand[0] < best[0]:
+                best = cand
+        if best is None:
+            return False
+        _, a, r0, c0, m, lo = best
+        self.occ[r0:r0 + m.shape[0], c0:c0 + m.shape[1]] |= m
+        # bed position of the item centre (item frame origin): pixel (r0, c0) is item-frame lo
+        x, y = c0 * self.res - lo[0], r0 * self.res - lo[1]
+        self.placed.append((it, round(float(x), 3), round(float(y), 3), round(float(a), 3)))
+        return True
+
+
+ANGLES = {"card": [(0, 90)], "foot": [(0, 90)],
+          "tree": [(0, 180), (0, 90, 180, 270), tuple(range(0, 360, 30)), tuple(range(0, 360, 15))]}
+
+
+def nest_plates(items, args, bed, ps):
+    """Fewest plates: each kind on its own plates (cards share one filament switch and a prime
+    tower; trees and feet print alone), parts nested by their real silhouettes with the clearance
+    `gap`, several rotations, bottom-left fill. Every plate tries a few strategies (rotation set x
+    fill rule x tower corner) and keeps the one that fits most. Spares only fill leftover room.
+    Returns ([(label, [(item, x, y, rot)])], {plate index: (wipe_tower_x, wipe_tower_y)})."""
+    excl = bed_exclusions(ps)
+    tw = float(ps.get("prime_tower_width", 35) or 35)
+    plates, towers = [], {}
+    labels = {"card": "cards", "tree": "trees", "foot": "feet"}
+    kinds = []
+    for it in items:
+        if it.kind not in kinds:
+            kinds.append(it.kind)
+    for kind in kinds:
+        gap = {"foot": args.foot_gap, "tree": args.tree_gap or args.gap}.get(kind, args.gap)
+        grow = gap / 2
+        group = [it for it in items if it.kind == kind and not getattr(it, "spare", False)]
+        spares = [it for it in items if it.kind == kind and getattr(it, "spare", False)]
+        multi = any(len(it.filaments) > 1 for it in group)
+        spots = tower_spots(bed, args.margin, excl, tw) if multi else [(None, None)]
+        # biggest first: long names find room while the plate is empty
+        group.sort(key=lambda it: -(it.size[0] * it.size[1]))
+        kind_plates = []
+        best_strategy = None
+        while group:
+            strategies = [(ang, rule, spot) for ang in ANGLES.get(kind, [(0, 90)]) for rule in ("bl", "lb", "contact")
+                          for spot in spots]
+            if best_strategy is not None and len({it.key for it in group}) == 1:
+                strategies = [best_strategy]                  # identical parts: the same pattern again
+            best = None
+            for ang, rule, spot in strategies:
+                pl = Plate(bed, args.margin, grow, excl + ([spot[0]] if spot[0] else []))
+                for it in group:
+                    if args.max_per_plate and len(pl.placed) >= args.max_per_plate:
+                        break
+                    pl.try_place(it, ang, grow, rule)
+                if best is None or len(pl.placed) > len(best[0].placed):
+                    best = (pl, (ang, rule, spot))
+            pl, best_strategy = best
+            if not pl.placed:
+                raise SystemExit(f"{group[0].name} does not fit on the bed")
+            used = {id(p[0]) for p in pl.placed}
+            group = [it for it in group if id(it) not in used]
+            kind_plates.append((pl, best_strategy[2][1]))
+            log = f"  {labels.get(kind, kind)} plate {len(kind_plates)}: {len(pl.placed)} parts " \
+                  f"(rotations {best_strategy[0] if len(best_strategy[0]) < 5 else 'every %d deg' % (360 // len(best_strategy[0]))}, " \
+                  f"fill {best_strategy[1]}{', tower at %s' % (best_strategy[2][1],) if best_strategy[2][1] else ''})"
+            print(log, flush=True)
+        # spares: only where there is room already
+        added = 0
+        for it in spares:
+            for pl, _ in kind_plates:
+                ang, rule, _ = best_strategy
+                if pl.try_place(it, ang, grow, rule):
+                    added += 1
+                    break
+        if spares:
+            print(f"  {labels.get(kind, kind)}: {added} of {len(spares)} spares fit without an extra plate", flush=True)
+        for pl, tower in kind_plates:
+            if tower:
+                towers[len(plates)] = tower
+            plates.append((labels.get(kind, kind), pl.placed))
+    out = []
+    for i, (label, placed) in enumerate(plates):
+        count = len(placed)
+        words = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+        nm = f"{args.plate_prefix} {i + 1} - {words.get(count, str(count))} {label if count != 1 else label.rstrip('s')}"
+        if label == "feet" and count == 1:
+            nm = f"{args.plate_prefix} {i + 1} - one foot"
+        out.append((nm.strip(), placed))
+    return out, towers
+
+
+def pause_height(args):
+    """Height of the first layer over the ballast pockets (the print pauses before it), or None."""
+    if not args.foot or str(args.pause_z).lower() == "none":
+        return None
+    if str(args.pause_z).lower() != "auto":
+        return float(args.pause_z)
+    P = C.parse_scad(args.scad)
+    if not P.get("ballast"):
+        return None
+    return round(float(P["ballast_top"]) + 0.2, 4)          # feet print at 0.2 mm layers
+
+
 def plate_origin(index, n_plates, bed):
     """OrcaSlicer's plate grid: columns = ceil-ish sqrt, rows go towards -y."""
     v = math.sqrt(n_plates)
@@ -356,7 +604,11 @@ def build(args):
     items = load_items(args, roles)
     if not items:
         raise SystemExit("nothing to pack: give --card / --card-dir / --tree / --foot")
-    plates = plan_plates(items, args, bed)
+    ps_tpl = json.loads(tpl["Metadata/project_settings.config"])
+    if args.pack == "nest":
+        plates, towers = nest_plates(items, args, bed, ps_tpl)
+    else:
+        plates, towers = plan_plates(items, args, bed), {}
     n_plates = len(plates)
 
     # objects: one per item, or one per distinct item key with instances
@@ -493,9 +745,11 @@ def build(args):
         '</Relationships>').encode()
     # project settings: the user's, with the per-plate prime tower lists sized to the plates
     ps = json.loads(tpl["Metadata/project_settings.config"])
-    for k in ("wipe_tower_x", "wipe_tower_y"):
+    for j, k in enumerate(("wipe_tower_x", "wipe_tower_y")):
         if isinstance(ps.get(k), list) and ps[k]:
             ps[k] = (ps[k] + [ps[k][-1]] * n_plates)[:max(n_plates, len(ps[k]))]
+            for pi, pos in towers.items():                    # the corner the nesting left free
+                ps[k][pi] = f"{pos[j]:g}"
     files["Metadata/project_settings.config"] = json.dumps(ps, indent=4).encode()
     for keep in ("Metadata/slice_info.config",):
         if keep in tpl:
@@ -527,6 +781,20 @@ def build(args):
         lr.append(" </object>")
     lr += ["</objects>", ""]
     files["Metadata/layer_config_ranges.xml"] = "\n".join(lr).encode()
+    # pause on every plate with feet before the layer that roofs over the ballast pockets (cards and
+    # trees are lower than that: on a shared plate only the feet are still printing)
+    pz = pause_height(args)
+    if pz:
+        cg = ['<?xml version="1.0" encoding="utf-8"?>', "<custom_gcodes_per_layer>"]
+        msg = "Fill every foot's pocket with steel shot and a little glue, level just under the rim, then resume"
+        for pi, (_, placed) in enumerate(plates):
+            if any(it.kind == "foot" for it, *_ in placed):
+                cg += ["<plate>", f'<plate_info id="{pi + 1}"/>',
+                       f'<layer top_z="{pz:g}" type="1" extruder="3" color="" extra="{xml_esc(msg)}" '
+                       f'gcode="{xml_esc(ps.get("machine_pause_gcode", "M601"))}"/>',
+                       '<mode value="MultiAsSingle"/>', "</plate>"]
+        cg += ["</custom_gcodes_per_layer>", ""]
+        files["Metadata/custom_gcode_per_layer.xml"] = "\n".join(cg).encode()
     files["Metadata/filament_sequence.json"] = json.dumps(
         {f"plate_{i + 1}": {"nozzle_sequence": [], "optimal_assignment": [], "sequence": []} for i in range(n_plates)},
         separators=(",", ":")).encode()
@@ -632,7 +900,7 @@ def write_plain_3mf(path, meshes):
         z.writestr("3D/3dmodel.model", body.getvalue())
 
 
-def validate(path, expected=None, slice_check=False, work=None):
+def validate(path, expected=None, slice_check=False, work=None, min_gap=2.0, expect_pause=False):
     """Structure, cross references, round trip and a PrusaSlicer load of every plate."""
     import trimesh
     res = {"file": os.path.abspath(path), "checks": []}
@@ -758,7 +1026,6 @@ def validate(path, expected=None, slice_check=False, work=None):
             d = {m.get("key"): m.get("value") for m in mi.findall("metadata")}
             plate_of[(d["object_id"], int(d["instance_id"]))] = pi
     out_bad = []
-    boxes = {}
     for oid, k, P in inst_world:
         pi = plate_of.get((oid, k), -1)
         ox, oy = plate_origin(pi, n_pl, bed)
@@ -767,16 +1034,41 @@ def validate(path, expected=None, slice_check=False, work=None):
             out_bad.append(f"{oid}#{k} plate {pi + 1}")
         if lo[2] < -1e-3 or lo[2] > 1e-3:
             out_bad.append(f"{oid}#{k} not on the bed (z {lo[2]:.3f})")
-        boxes.setdefault(pi, []).append((lo, hi, f"{oid}#{k}"))
-    overlap = []
-    for pi, bl in boxes.items():
-        for i in range(len(bl)):
-            for j in range(i + 1, len(bl)):
-                a, b = bl[i], bl[j]
-                if (a[0][0] < b[1][0] and b[0][0] < a[1][0] and a[0][1] < b[1][1] and b[0][1] < a[1][1]):
-                    overlap.append(f"{a[2]}/{b[2]}")
     add("instances on their plate, on the bed", not out_bad, "; ".join(out_bad))
-    # multi-filament plates get a prime tower: keep its corner free
+    # real silhouettes (seen from above) of every instance, in plate coordinates
+    from shapely.geometry import Polygon, box as sbox
+    from shapely.ops import unary_union
+    from shapely.strtree import STRtree
+    sil_obj = {}
+    for oid in objs:
+        tris = []
+        for pth, cid, Mc in objs[oid]:
+            vs, ts = sub[pth][cid]
+            w = C.transform_points(Mc, vs)
+            m = trimesh.Trimesh(w, ts, process=False)
+            tris.append(w[:, :2][ts[np.abs(m.face_normals[:, 2]) > 1e-6]])
+        sil_obj[oid] = trace_outline(np.concatenate(tris))
+    sils = {}
+    for (oid, k, _), (_, M) in zip(inst_world, items):
+        pi = plate_of.get((oid, k), -1)
+        ox, oy = plate_origin(pi, n_pl, bed)
+        g = unary_union([Polygon(pp @ M[:2, :2].T + M[:2, 3] - [ox, oy]).buffer(0) for pp in sil_obj[oid]])
+        sils.setdefault(pi, []).append((f"{oid}#{k}", g.simplify(0.02)))
+    gaps, close = [], []
+    for pi, sl in sils.items():
+        tree = STRtree([g for _, g in sl])
+        for i, (na, ga) in enumerate(sl):
+            for j in tree.query(ga.buffer(min_gap + 1.0)):
+                if j <= i:
+                    continue
+                d = ga.distance(sl[j][1])
+                gaps.append(d)
+                if d < min_gap:
+                    close.append(f"{na}/{sl[j][0]} plate {pi + 1}: {d:.2f} mm")
+    add(f"parts apart by >= {min_gap:g} mm (real outlines)", not close,
+        "; ".join(close[:12]) or (f"closest {min(gaps):.2f} mm" if gaps else ""))
+    # the excluded bed area, and the prime tower of multi-filament plates
+    excl = [sbox(*r) for r in bed_exclusions(ps)]
     try:
         tw_x = [float(v) for v in ps.get("wipe_tower_x", ["214"])]
         tw_y = [float(v) for v in ps.get("wipe_tower_y", ["200"])]
@@ -785,22 +1077,40 @@ def validate(path, expected=None, slice_check=False, work=None):
         tw_x, tw_y, tw_w = [214.0], [200.0], 35.0
     ext_of = {}
     for oid, o in so.items():
-        exts = {m.get("value") for m in o.iter("metadata") if m.get("key") == "extruder"}
-        ext_of[oid] = exts
-    tower_bad = []
-    for pi in boxes:
-        multi = set().union(*[ext_of.get(b[2].split("#")[0], set()) for b in boxes[pi]])
+        ext_of[oid] = {m.get("value") for m in o.iter("metadata") if m.get("key") == "extruder"}
+    tower_bad, excl_bad = [], []
+    for pi, sl in sils.items():
+        for name, g in sl:
+            if any(g.intersects(e) for e in excl):
+                excl_bad.append(f"{name} on plate {pi + 1}")
+        multi = set().union(*[ext_of.get(name.split("#")[0], set()) for name, _ in sl])
         if len(multi) < 2:
             continue
-        ox, oy = plate_origin(pi, n_pl, bed)
-        x0 = ox + tw_x[min(pi, len(tw_x) - 1)] - 3
-        y0 = oy + tw_y[min(pi, len(tw_y) - 1)] - 3
-        x1, y1 = x0 + tw_w + 6, y0 + tw_w + 6
-        for lo, hi, name in boxes[pi]:
-            if lo[0] < x1 and hi[0] > x0 and lo[1] < y1 and hi[1] > y0:
+        x0, y0 = tw_x[min(pi, len(tw_x) - 1)], tw_y[min(pi, len(tw_y) - 1)]
+        t = sbox(x0 - 3, y0 - 3, x0 + tw_w + 3, y0 + tw_w + 3)     # tower + its 3 mm brim
+        if t.bounds[0] < 0 or t.bounds[1] < 0 or t.bounds[2] > bed[0] or t.bounds[3] > bed[1] \
+                or any(t.intersects(e) for e in excl):
+            tower_bad.append(f"tower off the bed or on the excluded area, plate {pi + 1}")
+        for name, g in sl:
+            if g.distance(t) < 1.0:
                 tower_bad.append(f"{name} on plate {pi + 1}")
-    add("prime tower corner free (multi-filament plates)", not tower_bad, "; ".join(tower_bad))
-    add("no overlapping bounding boxes", not overlap, "; ".join(overlap))
+    add("prime tower spot free (multi-filament plates)", not tower_bad, "; ".join(tower_bad))
+    # feet plates pause to fill the ballast pockets
+    feet_plates = sorted(pi + 1 for pi, sl in sils.items()
+                         if any(ext_of.get(n.split("#")[0], set()) == {"3"} for n, _ in sl))
+    pauses = {}
+    if "Metadata/custom_gcode_per_layer.xml" in names:
+        cg = ET.fromstring(z.read("Metadata/custom_gcode_per_layer.xml"))
+        for pl in cg.findall("plate"):
+            pid = int(pl.find("plate_info").get("id"))
+            for ly in pl.findall("layer"):
+                if ly.get("type") == "1":
+                    pauses[pid] = float(ly.get("top_z"))
+    if feet_plates and (pauses or expect_pause):
+        ok = set(pauses) == set(feet_plates) and all(abs(v / 0.2 - round(v / 0.2)) < 1e-6 for v in pauses.values())
+        add("pause on every feet plate (ballast)", ok,
+            ", ".join(f"plate {k} before z {v:g}" for k, v in sorted(pauses.items())))
+    add("excluded bed area kept free", not excl_bad, "; ".join(excl_bad))
     # PrusaSlicer: flatten each plate to a plain 3MF and load it
     exe = shutil.which("prusa-slicer")
     if exe:
@@ -835,7 +1145,7 @@ def validate(path, expected=None, slice_check=False, work=None):
     return res
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", help="3MF to write")
     ap.add_argument("--template", default=TEMPLATE, help="the user's OrcaSlicer 3MF (or its unzipped folder)")
@@ -848,21 +1158,29 @@ def main():
     ap.add_argument("--feet", type=int, default=0)
     ap.add_argument("--tree-layer", type=float, default=0.1, help="tree layer height (mm)")
     ap.add_argument("--gold-layer", type=float, default=0.1, help="layer height in the card's gold Z range")
-    ap.add_argument("--foot-infill", default="100%",
-                    help='feet sparse infill, rectilinear (default 100%%: a heavy foot keeps the card from tipping '
-                         'backwards); "template" keeps the test print\'s 15%% lightning')
+    ap.add_argument("--foot-infill", default="template",
+                    help='feet sparse infill: "template" keeps the test print\'s 15%% lightning (default; the steel '
+                         'shot in the pocket gives the weight), or a density such as 100%% (rectilinear)')
+    ap.add_argument("--pause-z", default="auto",
+                    help='feet plates pause before this layer to fill the ballast pockets: "auto" = ballast_top + '
+                         'one layer from the SCAD, "none", or a height in mm')
+    ap.add_argument("--scad", default=os.path.join(C.ROOT, "wedding_place_cards.scad"), help="for --pause-z auto")
     ap.add_argument("--no-instances", action="store_true", help="one object (and mesh copy) per tree / foot")
     ap.add_argument("--gap", type=float, default=4.0, help="gap between cards / trees (mm)")
     ap.add_argument("--foot-gap", type=float, default=4.0, help="gap between feet (mm)")
+    ap.add_argument("--tree-gap", type=float, help="gap between trees (mm, default --gap)")
     ap.add_argument("--margin", type=float, default=3.0, help="keep this far from the bed edge (mm)")
-    ap.add_argument("--rotate", default="auto", choices=["auto", "0", "90"], help="turn parts to fit more per plate")
+    ap.add_argument("--rotate", default="auto", choices=["auto", "0", "90"], help="shelf packing: turn parts to fit more")
+    ap.add_argument("--pack", default="nest", choices=["nest", "shelf"],
+                    help="nest: real silhouettes, any rotation, fewest plates (default); shelf: bounding-box rows")
+    ap.add_argument("--spares", type=int, default=0, help="extra trees / feet, only where they fit without a new plate")
     ap.add_argument("--max-per-plate", type=int, default=0)
     ap.add_argument("--plate-prefix", default="Plate")
     ap.add_argument("--title", default="Wedding place cards")
     ap.add_argument("--slice-check", action="store_true", help="also slice every flattened plate with PrusaSlicer")
     ap.add_argument("--validate-only", help="only validate this 3MF")
     ap.add_argument("--json", help="write the summary + validation here (default: <out>.json)")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     if args.validate_only:
         res = validate(args.validate_only, slice_check=args.slice_check)
@@ -872,7 +1190,9 @@ def main():
         ap.error("--out is required")
     summary = build(args)
     work = tempfile.mkdtemp(prefix="3mf_check_")
-    res = validate(args.out, summary["meshes"], args.slice_check, work)
+    res = validate(args.out, summary["meshes"], args.slice_check, work,
+                   min_gap=min(args.gap, args.foot_gap, args.tree_gap or args.gap) - 2 * NEST_RES,
+                   expect_pause=bool(pause_height(args)))
     summary["validation"] = res
     js = args.json or os.path.splitext(args.out)[0] + ".json"
     with open(js, "w") as f:
@@ -880,7 +1200,7 @@ def main():
     print(f"wrote {args.out} ({summary['bytes'] / 1e6:.1f} MB): {summary['objects']} objects, "
           f"{summary['instances']} instances, {len(summary['plates'])} plates")
     for p in summary["plates"]:
-        print(f"  {p['name']}: " + ", ".join(f"{o['name']} @ ({o['x']}, {o['y']}){' rot 90' if o['rot'] else ''}"
+        print(f"  {p['name']}: " + ", ".join(f"{o['name']} @ ({o['x']}, {o['y']}){' rot %g' % o['rot'] if o['rot'] else ''}"
                                             for o in p["objects"]))
     print_validation(res)
     print("summary:", js)
