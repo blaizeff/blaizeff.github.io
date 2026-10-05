@@ -47,7 +47,7 @@ corner      = 4;       // plaque corner radius
 border_in   = 3;       // border distance from the plaque edge
 border_w    = 1.0;     // border line width (2 extrusion lines)
 border_r    = 3;       // border corner radius
-name_gap    = 5;       // minimum space between the name and the border, and between the name and the tree
+name_gap    = 5;       // minimum space between the name and the border
 edge_chamfer = 0.4;    // 45 deg chamfer on the bed-side edge: no elephant foot, crisp outline
 edge_fillet  = 0.8;    // rounded top edge: softer to the touch (and a lead-in for the slot)
 pitch       = [max(130, plaque_w_max + 6), plaque_h + 8];  // long names make the plaque wider
@@ -57,6 +57,7 @@ pitch       = [max(130, plaque_w_max + 6), plaque_h + 8];  // long names make th
 pocket_depth = 0.6;    // recess under the glued tree: locates it on every card, hides the glue line (0 = none)
 pocket_clear = 0.15;   // gap around the tree's glue face, so the tree drops into its pocket
 border_gap   = 0.4;    // ivory left between the gold border and the pocket
+tree_name_gap = 3;     // the name starts this far right of the tree (re-run tools/card_layout.py after a change)
 trunk_gap    = 0.6;    // visible gap between the trunk and the top of the foot: reads as "planted"
 tree_pos     = tree_pos_auto;  // trunk base centre on the plaque (x from the plaque's left end, y from its centre)
 
@@ -69,8 +70,8 @@ engrave_bold  = 0.03;  // a hair of extra weight so the finest serifs still carv
 engrave_depth = 0.6;   // depth measured square to the face
 engrave_angle = 45;    // carved downward at 45 deg: no overhanging ceilings inside the letters
 
-feet        = 55;      // 52 guests + 3 spares, fits one plate (5 x 11)
-foot_len    = 44;
+feet        = 55;      // 52 guests + 3 spares: 3 x 11 per 256 mm plate, so two plates
+foot_len    = 62;      // from under the trunk to about 2/3 along a 95 mm plaque: the card sits centred
 foot_d      = 18;      // depth at the bottom
 foot_top_d  = 11;      // depth at the top (trapezoid profile)
 foot_h      = 13;      // a little taller: room for B&K + date on the front
@@ -106,15 +107,13 @@ check_spacing = 200;
 $fn = 48;
 size = cap_h / cap_ratio;
 
-// The name sits right of the tree: centred in the free space up to the right border, or
-// left-aligned there when it is too long (the plaque then grows to the right).
-// Names missing from name_table (re-run tools/card_layout.py) fall back to left-aligned.
+// Every name starts right after the tree (tree_name_gap from it); a long name makes the plaque
+// grow to the right. Names missing from name_table (re-run tools/card_layout.py) start where no
+// name can touch the tree.
 function name_row(n) = [for (r = name_table) if (r[0] == n) r][0];
 function text_x(n) =
-  let(r = name_row(n), right = min_w - border_in - border_w - name_gap)
-  r == undef ? tree_pos.x + name_clear_x
-             : let(left = tree_pos.x + r[3], w = r[2] - r[1])
-               (w <= right - left ? (left + right - w) / 2 : left) - r[1];
+  let(r = name_row(n))
+  r == undef ? tree_pos.x + name_clear_x : tree_pos.x + r[3] - r[1];
 
 module label(n)
   translate([text_x(n), -cap_h / 2]) text(n, size = size, font = font, halign = "left", valign = "baseline");
@@ -264,8 +263,9 @@ if (make == "plaques") {
 } else if (make == "foot") {
   foot();
 } else if (make == "feet") {
+  cols = floor((256 + foot_gap) / (foot_len + foot_gap));   // as many as fit across the bed
   for (i = [0 : feet - 1])
-    translate([(i % 5) * (foot_len + foot_gap), -floor(i / 5) * (foot_d + foot_gap), 0]) foot();
+    translate([(i % cols) * (foot_len + foot_gap), -floor(i / cols) * (foot_d + foot_gap), 0]) foot();
 } else if (make == "assembly") {
   assembly(assembly_name, assembly_part);
 } else if (make == "check2d") {

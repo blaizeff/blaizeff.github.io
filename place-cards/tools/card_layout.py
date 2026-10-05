@@ -13,8 +13,8 @@ computes everything the SCAD cannot work out by itself:
     slivers closed), the region where the gold border is cut so it ends behind a solid
     part of the tree,
   * the name table: ink extents of every guest name (measured from OpenSCAD's own text
-    rendering), the left-most position that keeps each name name_gap clear of the tree, and
-    where that card's foot goes (see below).
+    rendering), the left-most position that keeps each name tree_name_gap clear of the tree
+    (the SCAD left-aligns every name there), and where that card's foot goes (see below).
   * the foot position of every card. The foot sits as in the photo (left end flush with the
     trunk's left edge) unless the card would then tip sideways at less than `side_tilt` deg
     (SCAD) with the foot printed as recommended (`--foot-basis`, default "solid": 100 % infill;
@@ -23,7 +23,8 @@ computes everything the SCAD cannot work out by itself:
     stays over the foot.
     The SCAD engraves a small tick on the plaque's back where the foot's right end goes.
     Masses and centres of mass come from a print model of each part (2D outlines, the user's
-    walls / shells / infill, PrusaSlicer-calibrated: see FOOT_PRINTS and plaque_mass()).
+    walls / shells / infill, PrusaSlicer-calibrated: see plaque_mass()). The foot prints in
+    FOOT_PRINTS are sliced with PrusaSlicer whenever the foot changes (cached in foot_prints.json).
 
 Frames: plaque frame = x from the plaque's left end (rounded rectangle), y = 0 on the plaque's
 centre line, z = 0 on the bed. Tree frame (canonical) =
@@ -75,16 +76,20 @@ RHO = {"ivory": 1.25, "gold": 1.32, "wood": 1.25}
 PLAQUE_PRINT = {"wall": 0.87, "bottom": 0.6, "top": 1.0, "infill": 0.15, "band": 1.0, "flow": 1.050, "res": 0.15}
 GOLD_FLOW = 0.993          # gold name + border (3 walls, solid): G-code mass / solid volume
 TREE_FLOW = 1.037          # silk tree (3 walls, 100 %), same
-# Foot prints: [description, mass as a fraction of a solid foot, CoM shift from the solid foot's
-# centroid (x, y, z mm)], from PrusaSlicer G-code of this foot (extruded filament per move).
+# Foot prints: [description, PrusaSlicer settings]. Their mass (as a fraction of a solid foot) and
+# centre of mass (shift from the solid foot's centroid) are measured on the current foot from the
+# G-code (extruded filament per move), and cached in foot_prints.json until the foot changes.
 # Lightning infill sits under the top surfaces, so a light foot also has a high centre of mass.
 FOOT_PRINTS = {
-    "test":     ["15 % lightning, 2 walls (the test print)",       0.3686, (-0.10, -0.84, 1.12)],
-    "gyroid15": ["15 % gyroid, 2 walls",                           0.4462, (0.00, -0.51, 0.74)],
-    "gyroid40": ["40 % gyroid, 4 walls",                           0.6785, (0.00, -0.19, 0.40)],
-    "bottom64": ["15 % lightning, 2 walls, 6.4 mm solid bottom",   0.8246, (-0.02, -0.36, -0.68)],
-    "solid":    ["100 % infill (recommended)",                     1.0029, (0.00, 0.00, 0.01)],
+    "test":     ["15 % lightning, 2 walls (the test print)", {"fill_pattern": "lightning", "fill_density": "15%"}],
+    "gyroid15": ["15 % gyroid, 2 walls", {"fill_pattern": "gyroid", "fill_density": "15%"}],
+    "gyroid40": ["40 % gyroid, 4 walls", {"fill_pattern": "gyroid", "fill_density": "40%", "perimeters": 4}],
+    "bottom64": ["15 % lightning, 2 walls, 6.4 mm solid bottom",
+                 {"fill_pattern": "lightning", "fill_density": "15%", "bottom_solid_layers": 32,
+                  "bottom_solid_min_thickness": 6.4}],
+    "solid":    ["100 % infill (recommended)", {"fill_pattern": "rectilinear", "fill_density": "100%"}],
 }
+FOOT_CACHE = os.path.join(HERE, "foot_prints.json")
 
 
 # ---------------------------------------------------------------- helpers
@@ -318,9 +323,41 @@ def tree_mass(tree_mesh, F, slab):
     return vol * RHO["gold"] * TREE_FLOW / 1000.0, com
 
 
-def foot_mass(foot_mesh, key):
+def foot_key(foot_mesh):
+    """Geometry fingerprint of the foot (OpenSCAD's facet order varies between runs, so no file hash)."""
+    return "vol %.1f bbox %s" % (foot_mesh.volume, " ".join("%.2f" % v for v in np.asarray(foot_mesh.bounds).ravel()))
+
+
+def measure_foot_prints(foot_mesh, tmpdir):
+    """Slice the foot with every FOOT_PRINTS setting: {key: [mass fraction of a solid foot, CoM shift]}.
+    Cached in foot_prints.json for this foot geometry."""
+    key = foot_key(foot_mesh)
+    try:
+        cache = json.load(open(FOOT_CACHE))
+    except (OSError, ValueError):
+        cache = {}
+    if cache.get("foot") == key and set(cache.get("prints", {})) == set(FOOT_PRINTS):
+        return cache["prints"]
+    import check_common as C
+    stl = os.path.join(tmpdir, "foot_for_prints.stl")
+    foot_mesh.export(stl)
+    solid_g = foot_mesh.volume * RHO["wood"] / 1000.0
+    centroid = np.asarray(foot_mesh.center_mass, float)
+    prints = {}
+    for k, (desc, settings) in FOOT_PRINTS.items():
+        cfg = C.prusa_profile("foot", dict(settings, filament_density=RHO["wood"]))
+        gcode = os.path.join(tmpdir, "foot_%s.gcode" % k)
+        C.slice_prusa(stl, gcode, cfg, tmpdir, center=(128, 128))
+        g, com = C.gcode_mass_com(gcode, foot_mesh, center=(128, 128), density=RHO["wood"])
+        prints[k] = [round(g / solid_g, 4), [round(float(v), 2) for v in np.asarray(com) - centroid]]
+        print("  foot print %-9s %s: %.2f g (%.1f %% of solid), CoM shift %s" % (k, desc, g, 100 * g / solid_g, prints[k][1]))
+    json.dump({"foot": key, "prints": prints}, open(FOOT_CACHE, "w"), indent=1)
+    return prints
+
+
+def foot_mass(foot_mesh, key, prints):
     """Foot printed with FOOT_PRINTS[key]: (g, CoM in the foot frame)."""
-    _, frac, shift = FOOT_PRINTS[key]
+    frac, shift = prints[key]
     return foot_mesh.volume * frac * RHO["wood"] / 1000.0, np.asarray(foot_mesh.center_mass, float) + shift
 
 
@@ -528,7 +565,7 @@ def layout(P, F, args, tx, ty):
     res["border"] = band.difference(res["border_cut"])
 
     # ---- name keep-out
-    res["name_keepout"] = unary_union([Fp, res["pocket"]]).buffer(P["name_gap"] + 0.02, quad_segs=QS)
+    res["name_keepout"] = unary_union([Fp, res["pocket"]]).buffer(P["tree_name_gap"] + 0.02, quad_segs=QS)
     return res
 
 
@@ -614,13 +651,11 @@ def name_left_min(G, keepout, x_lo, x_hi, y_shift):
 
 
 def name_layout(P, n_ink, left_min):
-    """Same rule as the SCAD: centre in the free area when it fits, else grow to the right."""
+    """Same rule as the SCAD: the name starts right after the tree, the plaque grows to the right
+    when the name needs it (name_gap to the border)."""
     x0, x1 = n_ink
-    wtxt = x1 - x0
-    right = P["min_w"] - P["border_in"] - P["border_w"] - P["name_gap"]
-    free = right - left_min
-    ink_left = left_min + (free - wtxt) / 2 if wtxt <= free else left_min
-    width = max(P["min_w"], ink_left + wtxt + P["name_gap"] + P["border_w"] + P["border_in"])
+    ink_left = left_min
+    width = max(P["min_w"], ink_left + (x1 - x0) + P["name_gap"] + P["border_w"] + P["border_in"])
     return ink_left, width
 
 
@@ -677,7 +712,7 @@ def main():
     P = parse_scad(args.scad)
     need = ["plaque_h", "plaque_t", "min_w", "corner", "border_in", "border_w", "border_r", "name_gap", "cap_h",
             "cap_ratio", "font", "lean", "slot_y", "foot_h", "slot_fit", "slot_depth", "foot_len",
-            "pocket_depth", "pocket_clear", "border_gap", "trunk_gap", "names"]
+            "pocket_depth", "pocket_clear", "border_gap", "trunk_gap", "tree_name_gap", "names"]
     miss = [k for k in need if k not in P]
     if miss:
         raise SystemExit("missing SCAD parameters: %s" % miss)
@@ -734,8 +769,9 @@ def main():
 
         # print model for the tipping checks: tree and foot masses, the foot's bed contact
         side = args.side_tilt if args.side_tilt is not None else float(P.get("side_tilt", 10.0))
+        prints = measure_foot_prints(foot, tmp)
         stab = {"tree": tree_mass(tree_mesh, F, args.slab), "box": contact_box(foot), "side": side,
-                "feet": {k: foot_mass(foot, k) for k in FOOT_PRINTS}, "basis": args.foot_basis,
+                "feet": {k: foot_mass(foot, k, prints) for k in FOOT_PRINTS}, "basis": args.foot_basis,
                 "recommended": args.foot_recommended, "back": args.back_tilt,
                 "foot_x": foot_x, "foot_x_cap": foot_x_cap}
 
@@ -905,7 +941,7 @@ def check(P, R, table, tmp, args, stab):
         pieces = len(polys(bd))
         thin = bd.difference(opening(bd, 0.3)).area
         bad = bad_by[n]
-        if d_pocket < P["name_gap"] - 0.02 or d_tree < P["name_gap"] - 0.02:
+        if d_pocket < P["tree_name_gap"] - 0.02 or d_tree < P["tree_name_gap"] - 0.02:
             bad.append("name too close to tree")
         if d_right < P["name_gap"] - 0.05:
             bad.append("name too close to border")

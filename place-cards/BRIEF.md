@@ -88,6 +88,10 @@ the user's real guest list: keep it.
      corner cuts. The plaque's left end hides behind the trunk (`tree_pos` is chosen for that by
      tools/card_layout.py). Only the pocket (from the top) and the foot tick (in the bed face) are cut
      into it.
+   * **Foot and names (user decision, 2026-10-05):** `foot_len = 62` (profile, slot and engraving
+     unchanged). The left end goes under the trunk and the foot spans about 65 % of a 95 mm plaque.
+     Every name is left-aligned right after the tree with `tree_name_gap = 3`, and `name_gap = 5`
+     stays for the border.
    * Pocket: a recess in the ivory top surface shaped like the tree's glue face (footprint ∩ plaque,
      offset by about 0.15 clearance, small slivers closed). About 0.6 deep, parameterised, 0 disables.
      It locates the tree exactly for 52 assemblies and hides the glue line. It is below the gold start,
