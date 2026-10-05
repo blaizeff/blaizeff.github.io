@@ -80,23 +80,19 @@ TREE_RELIEF_LAYER = 0.12
 TREE_RANGES = [(0.2, 1.4, 0.2, [("internal_solid_infill_speed", "120")])]
 TREE_PART_TIME = [("small_perimeter_speed", "100%")]
 # Cards: the pocket floor (z 1.8) is hidden under the glued tree: no ironing, fast top, thin shells under it
-# (the bottom shells' solid runs at the filament's full flow; the solid under the ironed top keeps 250)
-CARD_RANGES = [(0.2, 0.8, None, [("internal_solid_infill_speed", "300")]),
-               (0.8, 1.4, None, [("top_shell_layers", "2"), ("top_shell_thickness", "0")]),
+CARD_RANGES = [(0.8, 1.4, None, [("top_shell_layers", "2"), ("top_shell_thickness", "0")]),
                (1.6, 2.0, None, [("ironing_type", "no ironing"), ("top_surface_speed", "200")])]
 CARD_IVORY_TIME = [("internal_bridge_speed", "150")]
 # The gold letters are thin enough to be all walls: their top coat is the walls of the last gold layer
 CARD_GOLD_TOP_LAYER = [("outer_wall_speed", "20"), ("inner_wall_speed", "20"), ("gap_infill_speed", "20"),
                        ("small_perimeter_speed", "100%")]
-# Feet: hidden infill and solid wider and faster; the solid under the text ledges and the pocket floor is kept
-FOOT_TIME = [("ensure_vertical_shell_thickness", "none"), ("internal_solid_infill_line_width", "0.6"),
-             ("sparse_infill_line_width", "0.6"), ("bridge_speed", "80"), ("inner_wall_acceleration", "10000"),
-             ("initial_layer_acceleration", "2000")]
-FOOT_RANGES = [(0.0, 1.0, None, [("top_surface_speed", "200"), ("ensure_vertical_shell_thickness", "ensure_all")]),
-               (1.0, 1.8, None, [("ensure_vertical_shell_thickness", "ensure_all")]),
-               (5.0, 6.2, None, [("ensure_vertical_shell_thickness", "ensure_all")])]
-# Project: travels used to inherit the last feature's acceleration (2500 / 5000)
-PROJECT_TIME = [("travel_acceleration", "10000")]
+# Feet: only the closed pocket roof (z 6.8) and the internal bridge bridge faster, hidden inner walls accelerate
+# like Elegoo's stock profile. (Thinner shells or wider infill lines were tried: they leave long unsupported
+# spans under the visible top and weaken the roof over the shot, so the feet keep their solid.)
+FOOT_TIME = [("bridge_speed", "80"), ("inner_wall_acceleration", "10000")]
+FOOT_RANGES = []
+# Project: travels used to inherit the last feature's acceleration (2500 / 5000); first-layer travels stay at 500
+PROJECT_TIME = [("travel_acceleration", "10000"), ("initial_layer_travel_acceleration", "5%")]
 DEFAULT_CARD_OBJECT = [("extruder", "1"), ("layer_height", "0.2"), ("seam_position", "back"),
                        ("wall_generator", "arachne"), ("precise_outer_wall", "1")]
 DEFAULT_FOOT_OBJECT = [("extruder", "3"), ("layer_height", "0.2"), ("sparse_infill_pattern", "lightning")]
