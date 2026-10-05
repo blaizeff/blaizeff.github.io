@@ -70,6 +70,33 @@ TREE_PART_EXTRA = [("outer_wall_speed", "30"), ("inner_wall_speed", "50"), ("top
                    ("wall_loops", "3"), ("only_one_wall_top", "0"), ("filter_out_gap_fill", "0")]
 # The card's gold name and border: slow, gentle top coat so the silk comes out glossy and smooth
 CARD_GOLD_TOP = [("top_surface_speed", "20"), ("top_surface_acceleration", "1000")]
+
+# Print time (measured with tools/orca_lab.py on the OrcaSlicer 2.4.2 CLI; every change below keeps the
+# visible surfaces as they were, see BRIEF.md). Height ranges: (z0, z1, layer height or None, settings).
+# Trees: no top surface below z 1.4 (the relief's lowest point), so that slab prints at 0.2 mm with its
+# hidden solid core faster; the relief prints at 0.12 mm (renders: same look as 0.10); the small leaf loops
+# print at the branches' 30 mm/s instead of 15.
+TREE_RELIEF_LAYER = 0.12
+TREE_RANGES = [(0.2, 1.4, 0.2, [("internal_solid_infill_speed", "120")])]
+TREE_PART_TIME = [("small_perimeter_speed", "100%")]
+# Cards: the pocket floor (z 1.8) is hidden under the glued tree: no ironing, fast top, thin shells under it
+# (the bottom shells' solid runs at the filament's full flow; the solid under the ironed top keeps 250)
+CARD_RANGES = [(0.2, 0.8, None, [("internal_solid_infill_speed", "300")]),
+               (0.8, 1.4, None, [("top_shell_layers", "2"), ("top_shell_thickness", "0")]),
+               (1.6, 2.0, None, [("ironing_type", "no ironing"), ("top_surface_speed", "200")])]
+CARD_IVORY_TIME = [("internal_bridge_speed", "150")]
+# The gold letters are thin enough to be all walls: their top coat is the walls of the last gold layer
+CARD_GOLD_TOP_LAYER = [("outer_wall_speed", "20"), ("inner_wall_speed", "20"), ("gap_infill_speed", "20"),
+                       ("small_perimeter_speed", "100%")]
+# Feet: hidden infill and solid wider and faster; the solid under the text ledges and the pocket floor is kept
+FOOT_TIME = [("ensure_vertical_shell_thickness", "none"), ("internal_solid_infill_line_width", "0.6"),
+             ("sparse_infill_line_width", "0.6"), ("bridge_speed", "80"), ("inner_wall_acceleration", "10000"),
+             ("initial_layer_acceleration", "2000")]
+FOOT_RANGES = [(0.0, 1.0, None, [("top_surface_speed", "200"), ("ensure_vertical_shell_thickness", "ensure_all")]),
+               (1.0, 1.8, None, [("ensure_vertical_shell_thickness", "ensure_all")]),
+               (5.0, 6.2, None, [("ensure_vertical_shell_thickness", "ensure_all")])]
+# Project: travels used to inherit the last feature's acceleration (2500 / 5000)
+PROJECT_TIME = [("travel_acceleration", "10000")]
 DEFAULT_CARD_OBJECT = [("extruder", "1"), ("layer_height", "0.2"), ("seam_position", "back"),
                        ("wall_generator", "arachne"), ("precise_outer_wall", "1")]
 DEFAULT_FOOT_OBJECT = [("extruder", "3"), ("layer_height", "0.2"), ("sparse_infill_pattern", "lightning")]
@@ -165,19 +192,33 @@ def load_items(args, roles):
         base, gold = [f.strip() for f in files.split(",")]
         mb, mg = C.load_mesh(base), C.load_mesh(gold)
         z0, z1 = float(mg.bounds[0, 2]), float(mg.bounds[1, 2])
+        ranges = [(z0, z1, args.gold_layer)]
+        ivory = roles["ivory_part"]
+        if not args.no_time_opt:
+            gl = args.gold_layer
+            ranges = [(z0, z1 - gl, gl), (z1 - gl, z1, gl, CARD_GOLD_TOP_LAYER)] + \
+                [(a, b, h or 0.2, o) for a, b, h, o in CARD_RANGES]
+            ivory = merge_meta(ivory, CARD_IVORY_TIME)
         items.append(Item(
             key=f"card:{name}", name=name + args.card_suffix, kind="card",
-            parts=[("Ivory plaque", mb, roles["ivory_part"], base),
+            parts=[("Ivory plaque", mb, ivory, base),
                    ("Gold name + border", mg, merge_meta(roles["gold_part"], CARD_GOLD_TOP), gold)],
             obj_meta=roles["card_object"], filaments={1, 2},
-            layer_ranges=[(z0, z1, args.gold_layer)]))
+            layer_ranges=ranges))
     if args.tree:
         mt = C.load_mesh(args.tree)
         part_meta = merge_meta(roles["gold_part"], TREE_PART_EXTRA)
-        obj_meta = merge_meta([], TREE_OBJECT_META + [("layer_height", f"{args.tree_layer:g}")])
+        layer = args.tree_layer
+        ranges = []
+        if not args.no_time_opt:
+            part_meta = merge_meta(part_meta, TREE_PART_TIME)
+            layer = args.tree_layer if args.tree_layer_set else TREE_RELIEF_LAYER
+            ranges = list(TREE_RANGES)
+        obj_meta = merge_meta([], TREE_OBJECT_META + [("layer_height", f"{layer:g}")])
         for i in range(args.trees + (args.spares if args.trees else 0)):
             items.append(Item(key="tree", name=f"Tree {i + 1:02d}", kind="tree",
-                              parts=[("Gold tree", mt, part_meta, args.tree)], obj_meta=obj_meta, filaments={2}))
+                              parts=[("Gold tree", mt, part_meta, args.tree)], obj_meta=obj_meta, filaments={2},
+                              layer_ranges=ranges))
             items[-1].spare = i >= args.trees
     if args.foot:
         mf = C.load_mesh(args.foot)
@@ -186,10 +227,14 @@ def load_items(args, roles):
             # a heavy foot keeps the leaning card from tipping backwards (lightning cannot do 100 %)
             foot_meta = merge_meta(foot_meta, [("sparse_infill_density", args.foot_infill),
                                                ("sparse_infill_pattern", "zig-zag")])
+        ranges = []
+        if not args.no_time_opt:
+            foot_meta = merge_meta(foot_meta, FOOT_TIME)
+            ranges = [(a, b, h or 0.2, o) for a, b, h, o in FOOT_RANGES]
         for i in range(args.feet + (args.spares if args.feet else 0)):
             items.append(Item(key="foot", name=f"Foot {i + 1:02d}", kind="foot",
                               parts=[(f"Foot {i + 1:02d}", mf, roles["foot_part"], args.foot)],
-                              obj_meta=foot_meta, filaments={3}))
+                              obj_meta=foot_meta, filaments={3}, layer_ranges=ranges))
             items[-1].spare = i >= args.feet
     return items
 
@@ -746,6 +791,9 @@ def build(args):
         '</Relationships>').encode()
     # project settings: the user's, with the per-plate prime tower lists sized to the plates
     ps = json.loads(tpl["Metadata/project_settings.config"])
+    if not args.no_time_opt:
+        for k, v in PROJECT_TIME:
+            ps[k] = v
     for j, k in enumerate(("wipe_tower_x", "wipe_tower_y")):
         if isinstance(ps.get(k), list) and ps[k]:
             ps[k] = (ps[k] + [ps[k][-1]] * n_plates)[:max(n_plates, len(ps[k]))]
@@ -1158,7 +1206,8 @@ def main(argv=None):
     ap.add_argument("--trees", type=int, default=0)
     ap.add_argument("--foot", help="foot STL")
     ap.add_argument("--feet", type=int, default=0)
-    ap.add_argument("--tree-layer", type=float, default=0.1, help="tree layer height (mm)")
+    ap.add_argument("--tree-layer", type=float, help="tree relief layer height (mm; default 0.12, 0.1 with --no-time-opt)")
+    ap.add_argument("--no-time-opt", action="store_true", help="leave out the print-time settings (TREE_*, CARD_*, FOOT_* ranges)")
     ap.add_argument("--gold-layer", type=float, default=0.1, help="layer height in the card's gold Z range")
     ap.add_argument("--foot-infill", default="template",
                     help='feet sparse infill: "template" keeps the test print\'s 15%% lightning (default; the steel '
@@ -1183,6 +1232,9 @@ def main(argv=None):
     ap.add_argument("--validate-only", help="only validate this 3MF")
     ap.add_argument("--json", help="write the summary + validation here (default: <out>.json)")
     args = ap.parse_args(argv)
+    args.tree_layer_set = args.tree_layer is not None
+    if args.tree_layer is None:
+        args.tree_layer = 0.1
 
     if args.validate_only:
         res = validate(args.validate_only, slice_check=args.slice_check)

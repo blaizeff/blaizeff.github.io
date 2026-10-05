@@ -105,6 +105,21 @@ the user's real guest list: keep it.
    * **Silk top coat (user decision, 2026-10-05):** the card gold parts (letters and border) print their
      top surfaces at 20 mm/s and 1000 mm/s² so the silk comes out shiny and smooth. The trees keep their
      settings ("leaves are perfect").
+   * **Print time (user decision, 2026-10-05: "really optimize printing time while keeping quality at the
+     highest possible point before it visually appears"; deadline Wednesday).** Measured with
+     `tools/orca_lab.py` (the real OrcaSlicer 2.4.2 CLI) and reviewed by skeptics for visible changes; the
+     settings live in `tools/make_3mf.py` (TREE_*, CARD_*, FOOT_*, PROJECT_TIME):
+     * Trees: the slab z 0-1.4 has no visible top (the relief's lowest point is 1.4): 0.2 mm layers there,
+       3 walls kept, hidden solid core at 120 mm/s. The relief prints at 0.12 mm (look-alike renders: same
+       as 0.10). The small leaf loops print at the branches' 30 mm/s instead of 15 (small_perimeter_speed 100 %).
+     * Cards: the pocket floor (hidden under the tree) is not ironed and has thinner shells under it; hidden
+       ivory solid and bridges faster. The gold letters are all walls, so their "top coat" is the last gold
+       layer's walls: that layer prints at 20 mm/s.
+     * Feet: hidden infill/solid wider and faster (ensure_vertical_shell_thickness off, but back on under the
+       text ledges and the pocket floor), hidden accelerations up. Outer walls, tops and layer heights unchanged.
+     * Project: travel acceleration 10000 (travels used to inherit 2500 / 5000).
+     * Left out on purpose (could show): lower z-hop, reduce_infill_retraction, relief 0.15 mm, faster outer
+       walls / ironing, fewer top shells under visible tops, thicker foot layers.
    * Pocket: a recess in the ivory top surface shaped like the tree's glue face (footprint ∩ plaque,
      offset by about 0.15 clearance, small slivers closed). About 0.6 deep, parameterised, 0 disables.
      It locates the tree exactly for 52 assemblies and hides the glue line. It is below the gold start,
