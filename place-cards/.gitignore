@@ -4,3 +4,4 @@ tree/variants/*/out/
 renders/variants/
 # Per-guest plaque exports (tools/build_production.py); the production 3MF carries them
 stl/all/
+print/*.json
