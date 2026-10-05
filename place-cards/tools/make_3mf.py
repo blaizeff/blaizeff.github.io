@@ -93,6 +93,13 @@ FOOT_TIME = [("bridge_speed", "80"), ("inner_wall_acceleration", "10000")]
 FOOT_RANGES = []
 # Project: travels used to inherit the last feature's acceleration (2500 / 5000); first-layer travels stay at 500
 PROJECT_TIME = [("travel_acceleration", "10000"), ("initial_layer_travel_acceleration", "5%")]
+# --fast: a little more time saved with changes that could show on very close inspection (the user chooses):
+# trees with 2 walls, no small-loop slowdown (hidden inner loops at 50) and a faster hidden core; small gold
+# loops of the lower letter layers at the gold's normal speed; wood outer walls at 100; fewer retractions.
+FAST_TREE_PART = [("small_perimeter_threshold", "0"), ("wall_loops", "2"), ("internal_solid_infill_speed", "200")]
+FAST_CARD_GOLD = [("small_perimeter_threshold", "0")]
+FAST_FOOT = [("outer_wall_speed", "100")]
+FAST_PROJECT = [("reduce_infill_retraction", "1")]
 DEFAULT_CARD_OBJECT = [("extruder", "1"), ("layer_height", "0.2"), ("seam_position", "back"),
                        ("wall_generator", "arachne"), ("precise_outer_wall", "1")]
 DEFAULT_FOOT_OBJECT = [("extruder", "3"), ("layer_height", "0.2"), ("sparse_infill_pattern", "lightning")]
@@ -192,7 +199,7 @@ def load_items(args, roles):
         ivory = roles["ivory_part"]
         if not args.no_time_opt:
             gl = args.gold_layer
-            ranges = [(z0, z1 - gl, gl), (z1 - gl, z1, gl, CARD_GOLD_TOP_LAYER)] + \
+            ranges = [(z0, z1 - gl, gl, FAST_CARD_GOLD if args.fast else []), (z1 - gl, z1, gl, CARD_GOLD_TOP_LAYER)] + \
                 [(a, b, h or 0.2, o) for a, b, h, o in CARD_RANGES]
             ivory = merge_meta(ivory, CARD_IVORY_TIME)
         items.append(Item(
@@ -207,7 +214,7 @@ def load_items(args, roles):
         layer = args.tree_layer
         ranges = []
         if not args.no_time_opt:
-            part_meta = merge_meta(part_meta, TREE_PART_TIME)
+            part_meta = merge_meta(part_meta, TREE_PART_TIME + (FAST_TREE_PART if args.fast else []))
             layer = args.tree_layer if args.tree_layer_set else TREE_RELIEF_LAYER
             ranges = list(TREE_RANGES)
         obj_meta = merge_meta([], TREE_OBJECT_META + [("layer_height", f"{layer:g}")])
@@ -225,7 +232,7 @@ def load_items(args, roles):
                                                ("sparse_infill_pattern", "zig-zag")])
         ranges = []
         if not args.no_time_opt:
-            foot_meta = merge_meta(foot_meta, FOOT_TIME)
+            foot_meta = merge_meta(foot_meta, FOOT_TIME + (FAST_FOOT if args.fast else []))
             ranges = [(a, b, h or 0.2, o) for a, b, h, o in FOOT_RANGES]
         for i in range(args.feet + (args.spares if args.feet else 0)):
             items.append(Item(key="foot", name=f"Foot {i + 1:02d}", kind="foot",
@@ -788,7 +795,7 @@ def build(args):
     # project settings: the user's, with the per-plate prime tower lists sized to the plates
     ps = json.loads(tpl["Metadata/project_settings.config"])
     if not args.no_time_opt:
-        for k, v in PROJECT_TIME:
+        for k, v in PROJECT_TIME + (FAST_PROJECT if args.fast else []):
             ps[k] = v
     for j, k in enumerate(("wipe_tower_x", "wipe_tower_y")):
         if isinstance(ps.get(k), list) and ps[k]:
@@ -1204,6 +1211,7 @@ def main(argv=None):
     ap.add_argument("--feet", type=int, default=0)
     ap.add_argument("--tree-layer", type=float, help="tree relief layer height (mm; default 0.12, 0.1 with --no-time-opt)")
     ap.add_argument("--no-time-opt", action="store_true", help="leave out the print-time settings (TREE_*, CARD_*, FOOT_* ranges)")
+    ap.add_argument("--fast", action="store_true", help="also the FAST_* settings (could show on very close inspection)")
     ap.add_argument("--gold-layer", type=float, default=0.1, help="layer height in the card's gold Z range")
     ap.add_argument("--foot-infill", default="template",
                     help='feet sparse infill: "template" keeps the test print\'s 15%% lightning (default; the steel '

@@ -15,7 +15,8 @@ they fit on the plates the guests need anyway (spares never add a plate).
 
 Run (from anywhere; OpenSCAD and PrusaSlicer on PATH):
   python3 place-cards/tools/build_production.py
-  options: --out "print/Place cards - ALL GUESTS.3mf", --jobs 4, --spares 3, --no-slice-check
+  options: --out "print/Place cards - ALL GUESTS.3mf", --jobs 4, --spares 3, --no-slice-check,
+           --fast (the optional faster settings: "... - ALL GUESTS - FAST.3mf")
 """
 import argparse
 import hashlib
@@ -89,7 +90,10 @@ def main():
     ap.add_argument("--foot", default=os.path.join(ROOT, "stl", "foot.stl"))
     ap.add_argument("--export-only", action="store_true")
     ap.add_argument("--no-slice-check", action="store_true")
+    ap.add_argument("--fast", action="store_true", help='make_3mf --fast; default output "... - ALL GUESTS - FAST.3mf"')
     args = ap.parse_args()
+    if args.fast and args.out == ap.get_default("out"):
+        args.out = args.out.replace(".3mf", " - FAST.3mf")
 
     names = C.parse_scad(SCAD)["names"]
     files = export_cards(list(dict.fromkeys(names)), args.jobs)
@@ -109,6 +113,8 @@ def main():
         margs += ["--card", c]
     if not args.no_slice_check:
         margs.append("--slice-check")
+    if args.fast:
+        margs += ["--fast", "--title", "Place cards - all guests (fast)"]
     make_3mf.main(margs)
 
 
