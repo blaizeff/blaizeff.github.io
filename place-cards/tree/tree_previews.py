@@ -16,7 +16,6 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-HILL = '/tmp/claude-0/-home-user-blaizeff-github-io/24db3fd0-37aa-5abe-8f21-849f3f5e2464/scratchpad/work/tree_hill.png'
 GOLD = np.array([0.83, 0.66, 0.26])
 
 
@@ -179,7 +178,21 @@ def scale_bar(im, ppmm, mm=10, xy=None):
     return im
 
 
-def make_all(out, V, F, groups, top_outline=None, glue=None, hill_crop=None):
+def source_hillshade(depth, px, scale):
+    """Gold hillshade of the source front depth map (front view, NaN = background), light from the upper
+    left like preview_top.png: the reference the relief is compared with."""
+    m = ~np.isnan(depth)
+    Z = np.where(m, depth, np.nanmin(depth)) * scale                 # mm toward the viewer
+    gy, gx = np.gradient(Z, px)                                        # rows run down the image
+    n = np.dstack([-gx, gy, np.ones_like(Z)])
+    n /= np.linalg.norm(n, axis=2, keepdims=True)
+    L = np.array([-1.0, 1.0, 1.4]) / np.linalg.norm([-1.0, 1.0, 1.4])  # from the upper left
+    sh = np.clip(n @ L, 0, 1)
+    img = np.where(m[..., None], (0.12 + 0.88 * sh[..., None]) * GOLD * 255, 255)
+    return Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
+
+
+def make_all(out, V, F, groups, top_outline=None, glue=None, hill_crop=None, hill_img=None):
     V = np.asarray(V, float)
     F = np.asarray(F, np.int64)
     smooth = np.zeros(len(F), np.int8)
@@ -233,8 +246,8 @@ def make_all(out, V, F, groups, top_outline=None, glue=None, hill_crop=None):
     if top_outline is not None and glue is not None:
         footprint_figure(os.path.join(out, 'preview_footprint.png'), top_outline, glue)
     # 5. side-by-side with the source hillshade
-    if os.path.exists(HILL):
-        src = Image.open(HILL).convert('RGB')
+    if hill_img is not None:
+        src = hill_img.convert('RGB')
         if hill_crop is not None:                      # same region as the top view (scale match)
             x0, y0, x1, y1 = (int(round(v)) for v in hill_crop)
             canvas = Image.new('RGB', (x1 - x0, y1 - y0), (255, 255, 255))
@@ -246,7 +259,7 @@ def make_all(out, V, F, groups, top_outline=None, glue=None, hill_crop=None):
         both = Image.new('RGB', (top_img.size[0] + src.size[0] + 20, h), (255, 255, 255))
         both.paste(top_img, (0, 0))
         both.paste(src, (top_img.size[0] + 20, 0))
-        label(both, 'source hillshade (tree_hill.png)', (top_img.size[0] + 32, 8))
+        label(both, 'source: front depth map of the Tripo tree, same scale', (top_img.size[0] + 32, 8))
         both.save(os.path.join(out, 'compare_hillshade.png'))
 
 

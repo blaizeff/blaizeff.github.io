@@ -207,7 +207,7 @@ def node_env(three):
 
 
 def assemble(args):
-    P = C.card_params(args.scad, args.tree_data)
+    P = C.card_params(args.scad, args.tree_data, name=args.name)   # name: this card's foot position
     if args.tree_pos:
         P["tree_pos"] = [float(v) for v in args.tree_pos.split(",")]
     meshes = {"base": C.load_mesh(args.base), "foot": C.load_mesh(args.foot)}
@@ -298,7 +298,7 @@ def render(args):
     outs = []
     for view in [v.strip() for v in args.views.split(",") if v.strip()]:
         cfg = {"width": W * ss, "height": H * ss, "exposure": args.exposure, "env": args.env,
-               "background": "#eadfce", "cloth": "#ecdfcb", "hemi": 0.55, "key": args.key, "fill": 0.35,
+               "background": args.background, "cloth": args.cloth, "hemi": 0.55, "key": args.key, "fill": 0.35,
                "keyPos": [-170.0, 230.0, 110.0], "fillPos": [260.0, 30.0, 40.0], "room": args.room,
                "softboxes": [[[-75, 35, 30], [40, 30], 3.2], [[75, 30, 40], [30, 25], 1.8], [[0, 25, -85], [80, 30], 1.4]],
                "colours": {"ivory": C.FILAMENTS["ivory"]["colour"], "gold": C.FILAMENTS["gold"]["colour"],
@@ -368,6 +368,9 @@ def main():
     ap.add_argument("--env", type=float, default=1.0, help="environment (reflection) intensity")
     ap.add_argument("--key", type=float, default=1.6, help="key light intensity")
     ap.add_argument("--room", action="store_true", help="three.js RoomEnvironment instead of the studio dome")
+    # warm linen a few shades darker than the ivory filament, so the plaque reads as ivory
+    ap.add_argument("--background", default="#cbb698", help="backdrop colour")
+    ap.add_argument("--cloth", default="#d6c3a6", help="table cloth colour")
     ap.add_argument("--reference", help="reference photo for a side-by-side compare_<name>.png")
     ap.add_argument("--three-dir", help="folder of the three npm package")
     ap.add_argument("--out-dir", default=os.path.join(C.ROOT, "renders"))

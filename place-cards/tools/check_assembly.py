@@ -12,10 +12,11 @@ and in the middle, and reports:
   * masses: PrusaSlicer filament weight per part with the user's settings (plaque 15 %
     rectilinear, foot 15 % lightning, tree 100 %, gold name 3 walls) and a shell + infill
     voxel model of each part for its centre of mass (walls 2 x 0.42, top 1.0, bottom 0.6)
-  * centre of mass of the assembly and tipping margins front / back / left / right (distance
-    from the CoM to the edge of the foot's bed contact, and the tilt angle that tips it) for
-    the recommended foot position (left end under the trunk), the foot centred on the plaque,
-    and the best position for side balance
+  * centre of mass of the assembly (part CoMs from the G-code when PrusaSlicer ran) and tipping
+    margins front / back / left / right (distance from the CoM to the edge of the foot's bed
+    contact, and the tilt angle that tips it) for the recommended foot position (this card's
+    tick: name_table in tree_data.scad, found from --name), the foot centred on the plaque, and
+    the best position for side balance
 Writes a JSON report and a PNG (front, side and top views with the CoM and support area).
 
 Run (from the repo root; every path can be given):
@@ -113,6 +114,10 @@ def part_masses(paths, meshes, args, work):
                 if "filament_g" in s:
                     r["mass_g"] = round(float(s["filament_g"]), 2)
                     r["mass_source"] = "PrusaSlicer filament used"
+                    # where the slicer really puts the plastic (lightning infill sits high, under the top)
+                    _, com = C.gcode_mass_com(g, mesh, center=(128, 128), density=dens)
+                    r["com_voxel"], r["com_part_frame"] = r["com_part_frame"], com.round(3).tolist()
+                    r["com_source"] = "G-code"
             except Exception as e:  # noqa: BLE001
                 r["prusaslicer_error"] = str(e)[-500:]
         out[key] = r
@@ -293,7 +298,7 @@ def main():
     ap.add_argument("--tree", help="tree STL (canonical tree frame)")
     ap.add_argument("--tree-pos", help="x,y of the tree origin on the plaque (default: SCAD tree_pos)")
     ap.add_argument("--foot-x", type=float, help="recommended foot centre x in the plaque frame "
-                                                 "(default: assembly_foot_x from tree_data.scad)")
+                                                 "(default: this name's foot in tree_data.scad's name_table)")
     ap.add_argument("--plaque-x0", type=float, help="left end of the plaque rectangle (default: 0 for the "
                                                      "tree SCAD, the mesh's left end otherwise)")
     ap.add_argument("--no-slice", action="store_true", help="skip PrusaSlicer, masses from the voxel model")
@@ -334,8 +339,8 @@ def main():
         rect_x0 = 0.0 if ("tree_pos_auto" in P or "outline_bbox" in P) else base_lo[0]
     rect_x1 = base_hi[0]
 
-    # foot positions: recommended (left end under the trunk), centred on the plaque, and best
-    foot_rec = args.foot_x if args.foot_x is not None else P.get("assembly_foot_x")
+    # foot positions: recommended (this card's tick, from name_table), centred on the plaque, and best
+    foot_rec = args.foot_x if args.foot_x is not None else C.foot_x_for(P, args.name)
     if foot_rec is None:
         foot_rec = (rect_x0 + rect_x1) / 2
     foot_centre = (rect_x0 + rect_x1) / 2
@@ -391,7 +396,7 @@ def main():
     masses = part_masses(paths, meshes, args, work)
     scenes = []
     best = None
-    for label, fx, colour in (("recommended (left end under the trunk)", foot_rec, "#d62728"),
+    for label, fx, colour in (("recommended (foot's right end on the tick)", foot_rec, "#d62728"),
                               ("foot centred on the plaque", foot_centre, "#1f77b4")):
         M = world(0.0, fx)
         Wm = {k: meshes[k].copy().apply_transform(M[k]) for k in meshes}

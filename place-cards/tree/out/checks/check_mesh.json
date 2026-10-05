@@ -4,12 +4,12 @@
   "tree.stl": {
    "path": "/home/user/blaizeff.github.io/place-cards/tree/out/tree.stl",
    "topology": {
-    "triangles": 373306,
-    "vertices": 186649,
+    "triangles": 373098,
+    "vertices": 186545,
     "watertight": true,
     "winding_consistent": true,
-    "volume_mm3": 2594.718143674566,
-    "area_mm2": 3957.472835993578,
+    "volume_mm3": 2597.862567614309,
+    "area_mm2": 3959.6181993762707,
     "outward_normals": true,
     "nonmanifold_edges": 0,
     "boundary_edges": 0,
@@ -18,7 +18,7 @@
     "bodies": 1,
     "manifold3d_status": "NoError",
     "manifold3d_ok": true,
-    "manifold3d_volume_mm3": 2594.718143674567,
+    "manifold3d_volume_mm3": 2597.862567614309,
     "manifold3d_genus": 3
    },
    "bed": {
@@ -48,39 +48,39 @@
     "flat_ceiling_area_mm2": 0.0,
     "bed_band_mm": 0.4,
     "bed_band_overhang_area_mm2": 0.0,
-    "bed_face_area_mm2": 915.9980562174463
+    "bed_face_area_mm2": 915.9980576634129
    },
    "relief": {
     "grid_res_mm": 0.04,
     "projected_area_mm2": 1110.7856,
     "thickness_all_mm": {
      "min": 1.105,
-     "p1": 1.261,
-     "p5": 1.473,
-     "median": 2.341,
-     "max": 3.472
+     "p1": 1.262,
+     "p5": 1.475,
+     "median": 2.345,
+     "max": 3.47
     },
     "thickness_inner_mm": {
      "min": 1.4,
-     "p1": 1.511,
-     "p5": 1.766,
-     "median": 2.495,
-     "max": 3.472
+     "p1": 1.51,
+     "p5": 1.771,
+     "median": 2.498,
+     "max": 3.47
     },
     "thickness_inner_below_min_mm2": 0.0,
-    "max_height_mm": 3.472,
+    "max_height_mm": 3.47,
     "rim_thickness_mm": {
      "min": 1.401,
-     "p1": 1.448,
-     "p5": 1.7,
-     "median": 2.292,
+     "p1": 1.439,
+     "p5": 1.708,
+     "median": 2.294,
      "max": 3.377
     },
     "widths": {
      "outline (projection)": {
       "layer": "outline (projection)",
       "area_mm2": 1110.7856,
-      "skeleton_px": 8572,
+      "skeleton_px": 8582,
       "width_min_mm": 1.04,
       "width_p1_mm": 1.088,
       "width_p5_mm": 1.165,
@@ -107,12 +107,12 @@
        0,
        0,
        103,
-       435,
-       798,
-       1340,
+       436,
+       801,
+       1344,
        2125,
-       2955,
-       816
+       2956,
+       817
       ],
       "skeleton_below_min_frac": 0.0,
       "thin_necks_count": 0,
@@ -137,11 +137,11 @@
      "section z=0.05": {
       "layer": "section z=0.05",
       "area_mm2": 968.1424000000001,
-      "skeleton_px": 9220,
+      "skeleton_px": 9239,
       "width_min_mm": 0.792,
       "width_p1_mm": 0.862,
       "width_p5_mm": 0.99,
-      "width_median_mm": 2.721,
+      "width_median_mm": 2.725,
       "width_hist_bins_mm": [
        0,
        0.4,
@@ -161,15 +161,15 @@
        0,
        0,
        1,
-       179,
+       180,
        289,
-       196,
-       174,
-       577,
-       942,
-       2926,
-       3380,
-       556
+       203,
+       173,
+       574,
+       941,
+       2927,
+       3390,
+       561
       ],
       "skeleton_below_min_frac": 0.0509,
       "thin_necks_count": 4,
@@ -396,14 +396,14 @@
        }
       ],
       "width_min_at_mm": [
-       36.36,
+       36.32,
        37.8
       ]
      },
      "section z=1": {
       "layer": "section z=1",
-      "area_mm2": 1124.3424,
-      "skeleton_px": 9427,
+      "area_mm2": 1124.3408,
+      "skeleton_px": 9428,
       "width_min_mm": 1.018,
       "width_p1_mm": 1.088,
       "width_p5_mm": 1.211,
@@ -429,13 +429,13 @@
        0,
        0,
        0,
-       108,
+       109,
        213,
-       726,
-       1118,
-       2777,
-       3627,
-       858
+       725,
+       1116,
+       2778,
+       3628,
+       859
       ],
       "skeleton_below_min_frac": 0.0,
       "thin_necks_count": 0,
@@ -461,7 +461,7 @@
        }
       ],
       "width_min_at_mm": [
-       36.4,
+       36.44,
        37.72
       ]
      }
@@ -484,7 +484,7 @@
     {
      "check": "outward normals",
      "status": "PASS",
-     "value": "2594.7 mm3",
+     "value": "2597.9 mm3",
      "note": ""
     },
     {
@@ -520,7 +520,7 @@
     {
      "check": "triangle count",
      "status": "PASS",
-     "value": 373306,
+     "value": 373098,
      "note": "limit 600000"
     },
     {
@@ -545,19 +545,19 @@
      "check": "thickness min (inner)",
      "status": "PASS",
      "value": "1.4 mm",
-     "note": "p1 1.511, median 2.495, below-min area 0.0 mm2"
+     "note": "p1 1.51, median 2.498, below-min area 0.0 mm2"
     },
     {
      "check": "total thickness",
      "status": "PASS",
-     "value": "3.472 mm",
+     "value": "3.47 mm",
      "note": "target 2.5..3.6"
     },
     {
      "check": "rim height (outline wall)",
      "status": "INFO",
      "value": "1.401 mm",
-     "note": "median 2.292"
+     "note": "median 2.294"
     },
     {
      "check": "min width, outline (projection)",

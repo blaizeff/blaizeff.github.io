@@ -177,10 +177,15 @@ def load_items(args, roles):
                               parts=[("Gold tree", mt, part_meta, args.tree)], obj_meta=obj_meta, filaments={2}))
     if args.foot:
         mf = C.load_mesh(args.foot)
+        foot_meta = roles["foot_object"]
+        if args.foot_infill != "template":
+            # a heavy foot keeps the leaning card from tipping backwards (lightning cannot do 100 %)
+            foot_meta = merge_meta(foot_meta, [("sparse_infill_density", args.foot_infill),
+                                               ("sparse_infill_pattern", "zig-zag")])
         for i in range(args.feet):
             items.append(Item(key="foot", name=f"Foot {i + 1:02d}", kind="foot",
                               parts=[(f"Foot {i + 1:02d}", mf, roles["foot_part"], args.foot)],
-                              obj_meta=roles["foot_object"], filaments={3}))
+                              obj_meta=foot_meta, filaments={3}))
     return items
 
 
@@ -843,6 +848,9 @@ def main():
     ap.add_argument("--feet", type=int, default=0)
     ap.add_argument("--tree-layer", type=float, default=0.1, help="tree layer height (mm)")
     ap.add_argument("--gold-layer", type=float, default=0.1, help="layer height in the card's gold Z range")
+    ap.add_argument("--foot-infill", default="100%",
+                    help='feet sparse infill, rectilinear (default 100%%: a heavy foot keeps the card from tipping '
+                         'backwards); "template" keeps the test print\'s 15%% lightning')
     ap.add_argument("--no-instances", action="store_true", help="one object (and mesh copy) per tree / foot")
     ap.add_argument("--gap", type=float, default=4.0, help="gap between cards / trees (mm)")
     ap.add_argument("--foot-gap", type=float, default=4.0, help="gap between feet (mm)")

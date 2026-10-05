@@ -1,12 +1,12 @@
 tree.stl: 34 layers, footprint 1120.5 mm2
   never printed        0.0 mm2 in 0 spots
-  lost volume (walls)  5.205 mm3 (0.199% of 2614.58 mm3); interior gaps 1.471 mm3 (hidden)
-  lost in wall band    50.556 mm2 summed over layers (interior 14.41 mm2: hidden gaps in a solid part, not counted)
-  deep losses (>=0.3)  0.37 mm2 in 0 spots
-  lost islands         38 (largest 0.582 mm2, lowest layer 20)
-  top 2+ layers lower  7.666 mm2, higher 7.638 mm2
-  registration error   0.015 mm (G-code vs model bbox centre)
-  filament             3.55 g, 2.69 cm3, 59m 24s
+  lost volume (walls)  5.091 mm3 (0.194% of 2617.74 mm3); interior gaps 1.406 mm3 (hidden)
+  lost in wall band    49.416 mm2 summed over layers (interior 13.765 mm2: hidden gaps in a solid part, not counted)
+  deep losses (>=0.3)  0.41 mm2 in 1 spots
+  lost islands         30 (largest 0.2888 mm2, lowest layer 20)
+  top 2+ layers lower  7.718 mm2, higher 7.673 mm2
+  registration error   0.055 mm (G-code vs model bbox centre)
+  filament             3.56 g, 2.7 cm3, 59m 28s
 VERDICT: PASS
 report: /home/user/blaizeff.github.io/place-cards/tree/out/checks/check_slice.json
 image:  /home/user/blaizeff.github.io/place-cards/tree/out/checks/check_slice_heatmap.png

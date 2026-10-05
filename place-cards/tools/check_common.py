@@ -74,9 +74,10 @@ def parse_scad(path, env=None):
     return env
 
 
-def card_params(scad=DEFAULT_SCAD, tree_data=None, overrides=None):
+def card_params(scad=DEFAULT_SCAD, tree_data=None, overrides=None, name=None):
     """Plaque, foot and assembly parameters as one dict. tree_data.scad (the generated
-    include next to the SCAD) is read first, as OpenSCAD does, so tree_pos etc. resolve."""
+    include next to the SCAD) is read first, as OpenSCAD does, so tree_pos etc. resolve.
+    With a guest `name`, assembly_foot_x is that card's own foot position (name_table)."""
     env = {}
     td = tree_data or os.path.join(os.path.dirname(os.path.abspath(scad)), "tree_data.scad")
     if os.path.exists(td) and "include <tree_data.scad>" in open(scad, encoding="utf-8").read():
@@ -87,8 +88,29 @@ def card_params(scad=DEFAULT_SCAD, tree_data=None, overrides=None):
     P.setdefault("assembly_foot_x", None)
     for k, v in (overrides or {}).items():
         P[k] = v
+    if name:
+        P["assembly_foot_x"] = foot_x_for(P, name)
     P["_scad"] = os.path.abspath(scad)
     return P
+
+
+def name_row(P, name):
+    """This guest's name_table row (tree_data.scad); "Sophie_final" finds "Sophie"."""
+    table = P.get("name_table") or []
+    for key in (name, (name or "").rsplit("_", 1)[0]):
+        for r in table:
+            if r and r[0] == key:
+                return r
+    return None
+
+
+def foot_x_for(P, name=None):
+    """Foot centre x (plaque frame) for this guest: name_table's 5th column (tree frame, written by
+    card_layout.py: the foot's right end goes on the tick) moved by tree_pos, else assembly_foot_x."""
+    r = name_row(P, name) if name else None
+    if r is not None and len(r) > 4 and r[4] is not None:
+        return float(P["tree_pos"][0]) + float(r[4])
+    return P.get("assembly_foot_x")
 
 
 # ---------------------------------------------------------------- assembled pose
@@ -227,6 +249,30 @@ def slice_prusa(model, gcode, cfg, workdir, center=None, timeout=1800):
     if r.returncode != 0 or not os.path.exists(gcode):
         raise RuntimeError("PrusaSlicer failed:\n" + " ".join(cmd) + "\n" + r.stdout[-3000:] + r.stderr[-3000:])
     return cmd
+
+
+def gcode_mass_com(path, mesh, center=(128.0, 128.0), density=1.25):
+    """Mass (g) and centre of mass (part frame) of the plastic a G-code lays down: each extruding move
+    puts its filament at the segment midpoint, half a layer under the nozzle (relative E; retracts and
+    unretracts skipped). The part was sliced with its bbox centre at `center`, lowest point on the bed."""
+    ax = re.compile(r"([XYZE])(-?\d*\.?\d+)")
+    x = y = z = 0.0
+    lh, e_tot, acc = 0.2, 0.0, np.zeros(3)
+    with open(path) as f:
+        for line in f:
+            if line.startswith(";HEIGHT:"):
+                lh = float(line[8:])
+            elif line.startswith(("G1 ", "G0 ")):
+                d = dict((k, float(v)) for k, v in ax.findall(line.split(";")[0]))
+                nx, ny, z = d.get("X", x), d.get("Y", y), d.get("Z", z)
+                e = d.get("E", 0.0)
+                if e > 0 and (nx != x or ny != y):
+                    acc += e * np.array([(x + nx) / 2, (y + ny) / 2, z - lh / 2])
+                    e_tot += e
+                x, y = nx, ny
+    lo, hi = mesh.bounds
+    com = acc / max(e_tot, 1e-9) + [(lo[0] + hi[0]) / 2 - center[0], (lo[1] + hi[1]) / 2 - center[1], lo[2]]
+    return e_tot * math.pi * 0.875 ** 2 * density / 1000.0, com
 
 
 def gcode_summary(path):

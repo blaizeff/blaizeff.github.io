@@ -83,10 +83,11 @@ the user's real guest list: keep it.
 5. **Card adaptations** (in the SCAD; derived data may come from a Python helper):
    * Asymmetric layout: tree on the left. The name sits right of the tree, clear of the tree's
      footprint by `name_gap`. The plaque grows to the right for long names. Check every guest name.
-   * Backing: extend the plaque outline with a smooth shape behind the tree (trunk and inner canopy).
-     It gives glue area and stiffness. Like the photo, white shows between inner branches, while outer
-     leaves float free. No odd white bits peek out. The plaque's left end hides behind the trunk. The
-     bottom edge stays straight where it enters the foot slot.
+   * **Plaque = the user's original card (user decision, 2026-10-05):** plain rounded rectangle, the
+     original `profiled()` hull edge profile and `offset(r)` gold bevel. No backing, no leaf notches, no
+     corner cuts. The plaque's left end hides behind the trunk (`tree_pos` is chosen for that by
+     tools/card_layout.py). Only the pocket (from the top) and the foot tick (in the bed face) are cut
+     into it.
    * Pocket: a recess in the ivory top surface shaped like the tree's glue face (footprint ∩ plaque,
      offset by about 0.15 clearance, small slivers closed). About 0.6 deep, parameterised, 0 disables.
      It locates the tree exactly for 52 assemblies and hides the glue line. It is below the gold start,

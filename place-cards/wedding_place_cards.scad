@@ -8,8 +8,10 @@
 //   make = "test"     -> 2 cards + 2 feet, to check the finish before the full run
 //   make = "assembly" -> one card standing in its foot with the tree, for previews and checks
 // One card: make = "plaques" with names = ["Sophie"].
-// Tree placement, pocket, backing and name positions come from tree_data.scad, written by
+// Tree placement, pocket, name and foot positions come from tree_data.scad, written by
 // tools/card_layout.py: re-run it after changing the tree, the names or a plaque parameter.
+// Assembly: slide each foot until its RIGHT end lines up with the small tick on the plaque's back.
+// Print the feet with 100 % infill: a heavy foot keeps the leaning card from tipping backwards.
 // Font: Lora SemiBold (free on Google Fonts). Save this file as UTF-8 so accents render.
 
 include <tree_data.scad>
@@ -38,7 +40,6 @@ cap_ratio   = 0.972;   // capital height / font size for Lora (re-measure if you
 min_w       = 95;      // plaque width; long names make the plaque wider, never the text smaller
 plaque_h    = 35;
 plaque_t    = 2.4;     // ivory body (12 layers at 0.2)
-base_layer  = 0.2;     // ivory layer height: the edge profile steps sit on layer boundaries
 gold_h      = 1.0;     // raised gold name and border: tall enough to really stand out
 gold_chamfer = 0.2;    // 45 deg bevel on the top edge of every letter (printed as 2 x 0.1 mm steps)
 gold_step    = 0.1;    // layer height used for the gold
@@ -49,7 +50,7 @@ border_r    = 3;       // border corner radius
 name_gap    = 5;       // minimum space between the name and the border, and between the name and the tree
 edge_chamfer = 0.4;    // 45 deg chamfer on the bed-side edge: no elephant foot, crisp outline
 edge_fillet  = 0.8;    // rounded top edge: softer to the touch (and a lead-in for the slot)
-pitch       = [plaque_w_max - outline_bbox[0] + 8, outline_bbox[3] + plaque_h / 2 + 6];  // widest card + backing
+pitch       = [max(130, plaque_w_max + 6), plaque_h + 8];  // long names make the plaque wider
 
 // ---------- tree ----------
 // pocket_clear, border_gap and trunk_gap are used by tools/card_layout.py (re-run it after a change)
@@ -82,6 +83,15 @@ channel     = gold_h + 0.4;  // clears the raised gold border hidden behind the 
 foot_gap    = 4;
 foot_chamfer = 0.5;    // bed-side chamfer on the foot
 foot_fillet  = 1.0;    // rounded top edges on the foot
+
+// ---------- where the foot goes (tools/card_layout.py works it out per name) ----------
+// The foot sits as in the photo, left end flush with the trunk, unless the card would then tip
+// sideways under side_tilt on a 100 % infill foot: long names get it slid right, never past
+// the trunk's centre. A tick engraved in the plaque's back marks where the foot's right end goes.
+side_tilt   = 10;      // sideways tilt every card must survive, deg (re-run card_layout.py after a change)
+tick_depth  = 0.4;     // tick groove in the bed face, 2 layers (0 = no tick)
+tick_w      = 1.0;     // wide enough to stay open through the first-layer squish
+tick_len    = 9;       // from the bottom edge: about 3.5 mm shows above the foot at the back
 
 // ---------- test ----------
 test_names  = ["Sophie", "Max-Antoine"];
@@ -119,20 +129,22 @@ module raw(n)
     }
   }
 
+// Foot centre (plaque frame): as in the photo, or this card's own position from name_table
+// (names missing from it get the photo position). It follows the tree if tree_pos is moved.
+foot_x_photo = tree_pos.x + assembly_foot_x - tree_pos_auto.x;
+function foot_x(n) =
+  let(r = name_row(n))
+  r == undef ? foot_x_photo : r[4] == undef ? foot_x_photo : tree_pos.x + r[4];
+
+// Tick on the plaque's back: the foot's right end goes there
+module tick_2d(n)
+  translate([foot_x(n) + foot_len / 2 - tick_w / 2, -plaque_h / 2 - 1]) square([tick_w, tick_len + 1]);
+
 // Rounded rectangle inset from the raw one
 module rr(n, inset, r) offset(r = r) offset(delta = -inset - r) raw(n);
 
 // Tree-frame polygon from tree_data.scad, placed on the plaque
 module tree_shape(s) translate(tree_pos) polygon(s[0], s[1]);
-
-// Plaque outline: rounded rectangle, plus a smooth backing behind the trunk and inner canopy,
-// minus the few white bits that would otherwise peek out between leaves.
-// The outer offsets drop hairline slivers where the pieces meet.
-module outline(n)
-  offset(delta = 0.01) offset(delta = -0.02) offset(delta = 0.01) {
-    difference() { rr(n, 0, corner); tree_shape(plaque_cut); }
-    tree_shape(backing);
-  }
 
 // Edge profile: chamfer at the bottom, quarter-round at the top. Returns [z, inset] pairs.
 function edge_profile(t, c, r) =
@@ -144,37 +156,15 @@ module profiled(t, c, r) {
     translate([0, 0, min(p[0], t - 0.001)]) linear_extrude(0.001) offset(r = -p[1]) children();
 }
 
-// Same profile as an inset at height z
-function edge_inset(z, t, c, r) =
-  z < c ? c - z : z > t - r ? r - sqrt(max(0, r * r - pow(z - t + r, 2))) : 0;
-
-// Joins neighbouring slabs [z0, z1, inset, pocketed] that are cut the same way
-function merge_slabs(s, i = 1, cur = undef, out = []) =
-  let(c = cur == undef ? s[0] : cur)
-  i >= len(s) ? concat(out, [c])
-  : abs(s[i][2] - c[2]) < 1e-6 && s[i][3] == c[3] ? merge_slabs(s, i + 1, [c[0], s[i][1], c[2], c[3]], out)
-  : merge_slabs(s, i + 1, s[i], concat(out, [c]));
-
-// The outline is not convex any more, so the edge profile is stacked from layer-thick slabs
-// instead of a hull. Each slab takes the inset at its mid-height, which is what the slicer
-// samples, so it prints exactly like the smooth profile (insets under 0.01 count as none).
-// Slabs above the pocket floor lose the pocket.
-module plaque_base(n) {
-  floor = plaque_t - pocket_depth;
-  layers = [for (z = [0 : base_layer : plaque_t - base_layer / 2]) z];
-  zs = pocket_depth > 0
-    ? concat([for (z = layers) if (z < floor - 0.001) z], [floor], [for (z = layers) if (z > floor + 0.001) z], [plaque_t])
-    : concat(layers, [plaque_t]);
-  slabs = merge_slabs([for (i = [0 : len(zs) - 2])
-    [zs[i], zs[i + 1], round(100 * edge_inset((zs[i] + zs[i + 1]) / 2, plaque_t, edge_chamfer, edge_fillet)) / 100,
-     pocket_depth > 0 && zs[i] > floor - 0.001]]);
-  for (s = slabs)
-    translate([0, 0, s[0]]) linear_extrude(s[1] - s[0])
-      difference() {
-        offset(delta = -s[2]) outline(n);
-        if (s[3]) tree_shape(pocket);
-      }
-}
+// Pocket for the tree cut from the top, tick for the foot cut into the bed face
+module plaque_base(n)
+  difference() {
+    profiled(plaque_t, edge_chamfer, edge_fillet) rr(n, 0, corner);
+    if (pocket_depth > 0)
+      translate([0, 0, plaque_t - pocket_depth]) linear_extrude(pocket_depth + 1) tree_shape(pocket);
+    if (tick_depth > 0)
+      translate([0, 0, -1]) linear_extrude(tick_depth + 1) tick_2d(n);
+  }
 
 // Open border: it ends behind the tree and never enters the pocket
 module border_2d(n)
@@ -189,16 +179,14 @@ module gold_2d(n) {
   label(n);
 }
 
-// Straight sides, then a stepped 45 deg bevel on top (one step per 0.1 mm gold layer).
-// offset(delta) instead of offset(r): the same steps, without extra arc points in every inside
-// corner, which halves the render time on OpenSCAD 2021.
+// Straight sides, then a stepped 45 deg bevel on top (one step per 0.1 mm gold layer)
 module plaque_gold(n) {
   steps = round(gold_chamfer / gold_step);
   translate([0, 0, plaque_t]) {
     if (gold_piece <= 0) linear_extrude(gold_h - gold_chamfer) gold_2d(n);
     for (i = [1 : steps]) if (gold_piece == -1 || gold_piece == i)
       translate([0, 0, gold_h - gold_chamfer + (i - 1) * gold_step])
-        linear_extrude(gold_step) offset(delta = -i * gold_step) gold_2d(n);
+        linear_extrude(gold_step) offset(r = -i * gold_step) gold_2d(n);
   }
 }
 
@@ -257,10 +245,10 @@ module tree_model() {
   else linear_extrude(3) polygon(tree_outline[0], tree_outline[1]);
 }
 
-// One card seated in its foot at the real lean, tree in its pocket. The foot's left end sits
-// under the trunk, as in the reference photo.
+// One card seated in its foot at the real lean, tree in its pocket, foot at this card's tick
+// (under the trunk, as in the reference photo).
 module assembly(n, p = "all") {
-  if (p == "all" || p == "foot") color(wood) translate([assembly_foot_x, 0, 0]) foot();
+  if (p == "all" || p == "foot") color(wood) translate([foot_x(n), 0, 0]) foot();
   translate([0, slot_y, foot_h]) rotate([-lean, 0, 0])
     translate([0, plaque_t / 2, plaque_h / 2 - slot_depth]) rotate([90, 0, 0]) {
       if (p == "all" || p == "base") color(ivory) plaque_base(n);
@@ -283,13 +271,14 @@ if (make == "plaques") {
 } else if (make == "check2d") {
   for (i = [0 : len(check_names) - 1]) translate([0, -i * check_spacing]) {
     n = check_names[i];
-    if (check_layer == "outline") outline(n);
-    if (check_layer == "pocket") intersection() { outline(n); tree_shape(pocket); }
+    if (check_layer == "outline") rr(n, 0, corner);
+    if (check_layer == "pocket") intersection() { rr(n, 0, corner); tree_shape(pocket); }
     if (check_layer == "border") border_2d(n);
     if (check_layer == "name") label(n);
+    if (check_layer == "tick") intersection() { rr(n, 0, corner); tick_2d(n); }
   }
 } else {
   for (i = [0 : 1]) translate([(i - 0.5) * (foot_len + 8), 0, 0]) foot();
   for (i = [0 : len(test_names) - 1])
-    translate([-min_w / 2, foot_d / 2 + 8 - outline_bbox[1] + i * pitch[1], 0]) plaque(test_names[i]);
+    translate([-min_w / 2, foot_d / 2 + 8 + plaque_h / 2 + i * (plaque_h + 6), 0]) plaque(test_names[i]);
 }

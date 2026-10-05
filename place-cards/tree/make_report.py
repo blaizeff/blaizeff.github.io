@@ -48,8 +48,9 @@ def main(out=None):
       'cards. The flat glue face lies on the bed at z = 0 and the relief points up. It is one watertight body in the '
       'canonical tree frame: origin at the centre of the straight trunk-bottom edge, +x right, +y up, z = thickness.\n')
     w('The build promotes variant B (vector outline + adaptive triangulation), which the judge picked, and applies '
-      'every must-fix plus the worthwhile grafts from variant A. Every number below was measured on the files in '
-      '`out/` (`tree_meta.json`, `slice_check.json`, `checks/`).\n')
+      'every must-fix plus the worthwhile grafts from variant A. A polish round then continued the trunk relief down '
+      'to the cut, re-measured every must-fix and made the build reproducible from a fresh clone. Every number below '
+      'was measured on the files in `out/` (`tree_meta.json`, `slice_check.json`, `checks/`).\n')
 
     w('## Result at a glance\n')
     b = m['bbox_3d']['size']
@@ -65,10 +66,39 @@ def main(out=None):
       f'{p["chamfer"]} mm from {p["chamfer_w1"]} mm wide parts up |')
     tb = m['trunk_base']
     w(f'| Trunk base | straight cut from x = {tb["x_left"]} to {tb["x_right"]} at y = 0; glue face from y = {tb["glue_face_y_min"]} |')
+    bp = sol.get('trunk_base_profile')
+    if bp:
+        c0 = bp['0.02']
+        w(f'| Trunk relief at the cut | thickness along the cut edge: median {c0["median"]}, p25 {c0["p25"]}, max {c0["max"]} mm; '
+          f'{100 * c0["share_within_0.2_of_floor"]:.0f} % of the edge within 0.2 mm of the floor (only the root-flare tips) |')
     if s:
         pe = s['print_estimate_15pct_infill']
         w(f'| PrusaSlicer estimate | {pe["filament_g"]} g, {pe["time"]} (0.1 mm layers, 2 walls, 15 % infill) |')
     w('')
+
+    bx = m['height_info'].get('trunk_base_extension')
+    if bp and bx:
+        w('## Polish round: what changed\n')
+        c0, c2 = bp['0.02'], bp['2.0']
+        lf = bx['flute_lean_deg_on_anchor_row']
+        w('| Item | Before | Now |\n|---|---|---|')
+        w('| Trunk base | the relief drooped into the source\'s roots over the last ~1.5 mm: along the cut edge median '
+          '2.206 mm, p25 1.471 mm, 36 % of the edge within 0.2 mm of the 1.4 mm floor (the whole right half) | '
+          f'trunk continued straight down along its flutes: median {c0["median"]} mm, p25 {c0["p25"]} mm, '
+          f'{100 * c0["share_within_0.2_of_floor"]:.0f} % near the floor (the two root-flare tips); 2 mm higher up the '
+          f'median is {c2["median"]} mm. The cut edge, the outline and the frame origin did not move |')
+        pw = [q for q in m['exact_outline_checks'].get('pinch_wall_distance_mm', []) if q['wall_distance_mm']]
+        if pw:
+            q = pw[0]
+            w(f'| Narrow slit (judge: near (36.5, 33.9)) | 0.562 mm on a 0.02 mm raster | exact wall-to-wall distance '
+              f'{q["wall_distance_mm"]} mm at {xy(q["at"])} (shapely, on `outline_full`); >= {p["min_gap"]} mm |')
+        w('| Fresh clone | depth maps read from the session scratch folder, else regenerated with npx (network) | '
+          'depth maps committed as `cache/tree_depth_q16.npz` (2.4 MB, 16-bit, depth error < 0.00004 mm, height grid '
+          'within 0.0003 mm of a float64 build); `--regen` or a missing cache rebuilds it from the GLB. Scratch goes to '
+          '`work/` (git-ignored) |')
+        w('| Thickness floor | 1.4 mm everywhere, but the code still built a zoned floor from a plaque rectangle | the '
+          'plaque rectangle is only used when `--floor-in` differs from `--floor-out` (not by default) |')
+        w('')
 
     w('## Judge must-fixes and grafts: what changed\n')
     wt = m['min_width_top_outline']
@@ -88,9 +118,12 @@ def main(out=None):
       f'{ray["thickness_top_z_mm"]["area_below_1.4_mm2"]} mm² below 1.4 |')
     w(f'| Bed contact of thin stems | glue face 0.42 mm, z = 0.1 section 0.57 mm | width-adaptive chamfer: glue face min '
       f'{wg["min_mm"]} mm (p1 {wg["p1_mm"]}), z = 0.1 section min {f(s01.get("width_min_mm"))} mm |')
+    pw = [q for q in ex.get('pinch_wall_distance_mm', []) if q['wall_distance_mm']]
     w(f'| Narrow slit at (36.5, 33.9) | 0.48 mm pinch | pinch widened (walls pushed back '
-      f'{gf[0]["action"].split("back ")[1].split(" mm")[0] if gf else "?"} mm each): narrowest open gap now {gap["min_mm"]} mm '
-      f'(raster), exact opening at {ex["gap_tested_mm"]} mm leaves {ex["gap_opening_residual_mm2"]["largest_piece"]} mm² at most |')
+      f'{gf[0]["action"].split("back ")[1].split(" mm")[0] if gf else "?"} mm each): '
+      + (f'exact wall distance {pw[0]["wall_distance_mm"]} mm at {xy(pw[0]["at"])}, ' if pw else '')
+      + f'narrowest open gap {gap["min_mm"]} mm (raster), exact opening at {ex["gap_tested_mm"]} mm leaves '
+      f'{ex["gap_opening_residual_mm2"]["largest_piece"]} mm² at most |')
     w(f'| Right root stub at the trunk cut | 0.90-0.93 mm wedge | trimmed back to a round cap (opening r = {p["root_radius"]} mm '
       f'near the cut, {m["outline_info"].get("root_trim_mm2")} mm² removed) |')
     rr = sol['rim_roughness']['mm_inside_edge']
@@ -102,9 +135,10 @@ def main(out=None):
     w('')
 
     w('## Method\n')
-    w(f'1. **Source heights.** Orthographic depth maps of the tree front and back ({m["pixel_mm"]:.4f} mm/px). The Tripo '
-      'tree has a flat back, so relief = front depth minus a plane fitted to the back. `--regen` rebuilds the cached depth '
-      'maps from the GLB (gltf-transform meshopt decode, node `tripo_part_0` in world transform, embree ray casting).')
+    w(f'1. **Source heights.** Orthographic depth maps of the tree front and back ({m["pixel_mm"]:.4f} mm/px), read from the '
+      'committed cache `cache/tree_depth_q16.npz`. The Tripo tree has a flat back, so relief = front depth minus a plane '
+      'fitted to the back. `--regen` (or a missing cache) rebuilds the cache from the GLB (gltf-transform meshopt decode '
+      'via npx, node `tripo_part_0` in world transform, embree ray casting).')
     w(f'2. **Silhouette clean-up.** Horizontal trunk cut at model y = {p["cut_world_y"]}, just above the jagged source cut, so '
       f'the stray root running down and behind is dropped. Largest body only, source pin-holes under {p["hole_area"]} mm² '
       f'filled, and a {p["flare_left"]} mm left root flare.')
@@ -114,8 +148,16 @@ def main(out=None):
       f'r = {p["tip_radius"]} mm (rounds every tip). Then the base parts thinner than {2 * p["root_radius"]:.1f} mm are trimmed '
       'to a round cap (the right root needle), and a gap fixer widens pinches and fills dead-end notches narrower than '
       f'{p["min_gap"]} mm without leaving spikes. The cut edge is snapped exactly onto y = 0.')
+    bxt = ''
+    if bx:
+        lf = bx['flute_lean_deg_on_anchor_row']
+        bxt = (f'Trunk base: the source trunk droops into its roots just above the cut, so every point below '
+               f'{p["base_band"][0]} mm takes the relief of the row at {bx["anchor_row_mm"]} mm along a fan of straight lines that '
+               f'follow the measured flute direction ({lf["left_edge"]}° from vertical at the left edge, median {lf["median"]}°, '
+               f'{lf["right_edge"]}° on the right flank), warped back into the source by {p["base_band"][1]} mm (a C1 warp, not a '
+               'cross-fade, so no flute is doubled); the cut is not treated as a rim. ')
     w(f'4. **Heights.** Median outlier removal, {p["bilateral_iters"]} bilateral passes (keeps overlap cliffs, rims and '
-      'midribs). Thickened stems get their round cross-section stretched; closed gaps are filled at the lower neighbouring '
+      f'midribs). {bxt}Thickened stems get their round cross-section stretched; closed gaps are filled at the lower neighbouring '
       f'height so they read as grooves. The outer {p["rim_band"]} px of grazing-angle samples are rebuilt by a first-order '
       f'extrapolation from inside, continued {p["rim_ext"]} px beyond the outline and blended back over {p["rim_blend"]} px. '
       f'Band-pass detail boost x{p["detail_gain"]} ({p["detail_s1"]}-{p["detail_s2"]} mm). Thickness = {p["base"]} + '
@@ -163,6 +205,10 @@ def main(out=None):
         f'{k} mm in: {v["p99"]} mm' for k, v in sol['rim_roughness']['mm_inside_edge'].items()) + ' |')
     se = m['surface_error_mm']
     w(f'| Top surface vs height grid | max {se["max"]} mm, p99 {se["p99"]} mm, mean {se["mean"]} mm |')
+    if bp:
+        w('| Trunk base profile (rays along y = const, thickness min / median / max, share within 0.2 mm of the floor) | '
+          + '; '.join(f'y = {k}: {v["min"]} / {v["median"]} / {v["max"]} mm, {100 * v["share_within_0.2_of_floor"]:.0f} %'
+                      for k, v in bp.items()) + ' |')
     w(f'| Glue inset | every glue vertex {ch["glue_vertex_inset_mm"]["min"]} to {ch["glue_vertex_inset_mm"]["max"]} mm inside '
       f'the outline; {int(round(100 * ch["chamfer_per_wall_vertex_mm"]["fraction_full"]))} % of the outline has the full '
       f'{p["chamfer"]} mm chamfer |')
@@ -179,8 +225,9 @@ def main(out=None):
             ls = ', '.join(f'{q["area_mm2"]:.2f} mm² at ({q["x"]}, {q["y"]}) top {q["local_max_z"]}' for q in lost[:3])
             w(f'| {r["print_z"]:.2f} | {r["model_area_mm2"]:.1f} | {r["uncovered_mm2"]:.3f} | {r["uncovered_pct"]:.3f} | '
               f'{r["section_islands"]} | {len(lost)}{": " + ls if ls else ""}{" ..." if len(lost) > 3 else ""} |')
-        w('\nIslands with no extrusion only appear at the tops of leaf domes and crests, whose peak sits within a layer '
-          'of the slicing plane: that dome simply ends one layer lower.\n')
+        w('\nIslands with no extrusion only appear where the top surface sits within a layer of the slicing plane: the '
+          'tops of leaf domes and crests, and the low root-flare tip at the left end of the trunk cut (about 1.55 mm '
+          'thick, against the 1.55 mm mid-layer plane of the 1.6 mm layer). That spot simply ends one layer lower.\n')
 
     if tm or ts:
         w('## Shared checks (tools/check_mesh.py, tools/check_slice.py)\n')
@@ -205,7 +252,8 @@ def main(out=None):
               f'2+ layers lower {su["printed_top_lower_by_2plus_layers_mm2"]} mm², higher {su["printed_top_higher_by_2plus_layers_mm2"]} mm².\n')
 
     w('## Previews\n')
-    w('`preview_top.png` (true proportions), `compare_hillshade.png` (next to the source hillshade at the same scale), '
+    w('`preview_top.png` (true proportions), `compare_hillshade.png` (next to a hillshade of the source front depth map at '
+      'the same scale), '
       '`preview_oblique.png`, `preview_side.png`, `closeup_leaf_cluster.png` and `closeup_trunk_base.png` (40 px/mm), '
       '`preview_layers.png` (relief quantised to 0.1 mm layers), `slice_check_layers.png` (gold = extruded, red = model not '
       'covered, blue = extrusion outside the model).\n')

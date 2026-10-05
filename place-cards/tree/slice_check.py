@@ -20,7 +20,7 @@ import subprocess
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-WORK = '/tmp/claude-0/-home-user-blaizeff-github-io/24db3fd0-37aa-5abe-8f21-849f3f5e2464/scratchpad/work/agents/tree_final'
+WORK = os.path.join(HERE, 'work')        # G-code and debug images (git-ignored)
 
 
 def slice_stl(stl, gcode, a, fill='100%'):
@@ -35,7 +35,10 @@ def slice_stl(stl, gcode, a, fill='100%'):
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         raise SystemExit('prusa-slicer failed:\n' + r.stdout[-2000:] + r.stderr[-2000:])
-    return ' '.join(cmd), r.stdout[-600:]
+    # record paths relative to place-cards/ so the report does not depend on where the repo is cloned
+    pc = os.path.dirname(HERE)
+    shown = [os.path.relpath(c, pc) if os.path.isabs(c) and c.startswith(pc + os.sep) else c for c in cmd]
+    return ' '.join(shown), r.stdout[-600:]
 
 
 def parse_gcode(path):
@@ -131,7 +134,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--stl', default=os.path.join(HERE, 'out', 'tree.stl'))
     ap.add_argument('--out', default=os.path.join(HERE, 'out'))
-    ap.add_argument('--work', default=WORK if os.path.isdir(WORK) else os.path.join(HERE, 'out'))
+    ap.add_argument('--work', default=WORK)
     ap.add_argument('--layer', type=float, default=0.1)
     ap.add_argument('--width', type=float, default=0.42)
     ap.add_argument('--generator', default='arachne')

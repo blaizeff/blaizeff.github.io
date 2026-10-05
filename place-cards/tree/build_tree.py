@@ -6,8 +6,10 @@ heightfield relief: flat glue face on the bed at z = 0, relief up, one watertigh
 tree frame (origin = centre of the straight trunk-bottom edge, +x right, +y up, z = thickness).
 
 Pipeline
-  1. Orthographic depth maps of the tree front/back (cached .npz; --regen rebuilds them from the GLB:
-     meshopt decode with gltf-transform, node tripo_part_0 in world transform, embree ray casting).
+  1. Orthographic depth maps of the tree front/back, from the committed cache cache/tree_depth_q16.npz
+     (2.4 MB, 16-bit quantised, depth error < 0.00004 mm), so a fresh clone builds without node or network.
+     --regen (or a missing cache) rebuilds it from the GLB: meshopt decode with gltf-transform via npx,
+     node tripo_part_0 in world transform, embree ray casting.
   2. Raster clean-up of the silhouette: horizontal trunk cut, largest body only, pin-holes filled,
      left root flare.
   3. Vector outline: sub-pixel contour of a smoothed mask -> shapely. Rounds of: thicken stems below
@@ -15,8 +17,9 @@ Pipeline
      holes, open with --tip-radius (rounds every tip). Then the thin root needle at the trunk cut is
      trimmed to a round cap (--root-radius) and a gap fixer widens pinches / fills dead-end notches
      narrower than --min-gap without leaving spikes. The cut edge is snapped exactly onto y = 0.
-  4. Heights: source relief above the flat back, spike removal, bilateral denoise, stretched stem
-     profiles, closed gaps filled as low grooves, the grazing-angle rim rebuilt by a smooth
+  4. Heights: source relief above the flat back, spike removal, bilateral denoise, the trunk continued
+     straight down to the cut along its flutes (--base-band; the source droops into its roots there),
+     stretched stem profiles, closed gaps filled as low grooves, the grazing-angle rim rebuilt by a smooth
      extrapolation (also a few pixels beyond the outline, blended back in), band-pass detail boost,
      base + gain mapping, soft floor (--floor-out, 1.4 mm everywhere by default) and soft cap.
   5. Constrained Delaunay triangulation (triangle) of the exact outline, refined adaptively by
@@ -31,10 +34,11 @@ Pipeline
 
 Run (from anywhere; Python 3.11 with numpy, scipy, shapely 2, scikit-image, opencv, triangle, trimesh
 with embree, manifold3d, matplotlib, pillow):
-  python3 place-cards/tree/build_tree.py            # full build, about 4 min on 4 CPUs
-  python3 place-cards/tree/build_tree.py --regen    # also re-decode the GLB first (needs node/npx)
+  python3 place-cards/tree/build_tree.py            # full build, about 3 min on 4 CPUs
+  python3 place-cards/tree/build_tree.py --regen    # re-decode the GLB and rewrite the depth cache first (node/npx)
   python3 place-cards/tree/slice_check.py           # PrusaSlicer extrusion coverage check, about 1 min
-Outputs go to place-cards/tree/out/ (override with --out). The output is deterministic.
+Outputs go to place-cards/tree/out/ (override with --out), scratch to place-cards/tree/work/ (git-ignored).
+The output is deterministic: the same cache and library versions give byte-identical files.
 """
 import argparse
 import json
@@ -50,7 +54,8 @@ from scipy import ndimage as ndi
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_PC = os.path.abspath(os.path.join(HERE, '..'))                     # place-cards/
 DEFAULT_GLB = os.path.join(REPO_PC, 'source', 'tree_tripo_meshopt.glb')
-SHARED_WORK = '/tmp/claude-0/-home-user-blaizeff-github-io/24db3fd0-37aa-5abe-8f21-849f3f5e2464/scratchpad/work'
+DEFAULT_DEPTH = os.path.join(HERE, 'cache', 'tree_depth_q16.npz')    # committed: builds need no node/npx
+DEFAULT_WORK = os.path.join(HERE, 'work')                              # scratch (git-ignored)
 T0 = time.time()
 DEBUG_SHAPES = None          # set to a dict to keep the intermediate outlines (debugging)
 
@@ -62,11 +67,13 @@ def log(*a):
 # --------------------------------------------------------------------------------------------
 # 1. source depth maps
 # --------------------------------------------------------------------------------------------
-def regen_cache(glb, cache, res):
-    """Decode the meshopt GLB, extract tripo_part_0 in world coordinates, ray-cast depth maps."""
+def regen_depth(glb, work, res):
+    """Decode the meshopt GLB, extract tripo_part_0 in world coordinates, ray-cast the depth maps.
+    Needs node + npx (@gltf-transform/cli is fetched by npx on first use) and trimesh with embree."""
     import trimesh
-    os.makedirs(cache, exist_ok=True)
-    dec = os.path.join(cache, 'tree_decoded.glb')
+    tmp = os.path.join(work, 'regen')
+    os.makedirs(tmp, exist_ok=True)
+    dec = os.path.join(tmp, 'tree_decoded.glb')
     log('decoding GLB with gltf-transform ...')
     subprocess.run(['npx', '-y', '@gltf-transform/cli@4', 'copy', glb, dec], check=True,
                    stdout=subprocess.DEVNULL)
@@ -79,27 +86,64 @@ def regen_cache(glb, cache, res):
             mesh.apply_transform(T)
     if mesh is None:
         raise SystemExit('node tripo_part_0 not found in ' + glb)
-    mesh.export(os.path.join(cache, 'tree_part0_raw.ply'))
     b = mesh.bounds
     zs = np.arange(b[0, 2], b[1, 2], res)
     ys = np.arange(b[1, 1], b[0, 1], -res)
     Z, Y = np.meshgrid(zs, ys)
     n = Z.size
+    maps = {'zs': zs, 'ys': ys, 'res': res}
     for name, x0, dx in (('front', b[1, 0] + 0.01, -1.0), ('back', b[0, 0] - 0.01, 1.0)):
         O = np.stack([np.full(n, x0), Y.ravel(), Z.ravel()], 1)
         D = np.tile([dx, 0.0, 0.0], (n, 1))
         loc, idx, _ = mesh.ray.intersects_location(O, D, multiple_hits=False)
         depth = np.full(n, np.nan)
         depth[idx] = loc[:, 0]
-        np.savez_compressed(os.path.join(cache, f'tree_{name}.npz'), depth=depth.reshape(Z.shape),
-                            zs=zs, ys=ys, res=res)
+        maps[name] = depth.reshape(Z.shape)
         log(f'  depth map {name}: {Z.shape}, coverage {np.mean(~np.isnan(depth)):.3f}')
+    return maps
 
 
-def load_depth(cache):
+def save_depth_q16(path, maps):
+    """Compact depth-map cache (committed, ~2.5 MB): the hit mask as bits, and per map the depth of the
+    hit pixels quantised to 16 bits over its own range (step ~7e-5 mm at the default scale, far below the
+    0.015 mm surface tolerance) and delta-coded in row-major order (mod 2^16), so deflate packs it well."""
+    F, B = maps['front'], maps['back']
+    m = ~np.isnan(F)
+    if not np.array_equal(m, ~np.isnan(B)):
+        m &= ~np.isnan(B)
+    out = {'shape': np.array(F.shape), 'mask_bits': np.packbits(m), 'ys': maps['ys'], 'zs': maps['zs'],
+           'res': np.float64(maps['res']), 'format': np.array('tree depth q16 v1')}
+    for name, D in (('front', F), ('back', B)):
+        v = D[m]
+        lo, hi = float(v.min()), float(v.max())
+        step = (hi - lo) / 65534.0
+        q = np.round((v - lo) / step).astype(np.int64)
+        out[name + '_lo'] = np.float64(lo)
+        out[name + '_step'] = np.float64(step)
+        out[name + '_dq'] = (np.diff(q, prepend=0) % 65536).astype(np.uint16)
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    np.savez_compressed(path, **out)
+
+
+def load_depth(path):
+    """Front/back depth maps from the q16 cache, columns flipped to the front view (tree on the left,
+    canopy sweeping right). Returns front, back (model x, NaN = miss), ys (row -> model y), res."""
+    d = np.load(path)
+    shape = tuple(int(v) for v in d['shape'])
+    m = np.unpackbits(d['mask_bits'])[:shape[0] * shape[1]].reshape(shape).astype(bool)
+    maps = []
+    for name in ('front', 'back'):
+        q = np.cumsum(d[name + '_dq'], dtype=np.uint16)          # wraps mod 2^16, undoing the delta code
+        D = np.full(shape, np.nan)
+        D[m] = float(d[name + '_lo']) + q.astype(np.float64) * float(d[name + '_step'])
+        maps.append(D[:, ::-1].copy())
+    return maps[0], maps[1], d['ys'], float(d['res'])
+
+
+def load_depth_float(cache):
+    """Full-precision maps (tree_front.npz / tree_back.npz as written by the first exploration), for checks."""
     f = np.load(os.path.join(cache, 'tree_front.npz'))
     b = np.load(os.path.join(cache, 'tree_back.npz'))
-    # flip columns: front view the right way round (tree on the left, canopy sweeping right)
     return f['depth'][:, ::-1].copy(), b['depth'][:, ::-1].copy(), f['ys'], float(f['res'])
 
 
@@ -479,6 +523,83 @@ def build_outline(m, px, r_cut, sk_info, a):
 # --------------------------------------------------------------------------------------------
 # 4. heights
 # --------------------------------------------------------------------------------------------
+def smoothstep(t):
+    t = np.clip(t, 0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
+
+
+def base_lean_profile(R, orig, px, r_cut, x0, a, u, y_m):
+    """Lean of the trunk flutes (deg from vertical, + = top leans left) across the trunk at the anchor row
+    y_m, as a function of canonical x = u: orientation of the relief's structure tensor summed over a 1 mm
+    strip from y_m - 0.3 up (smoothed along x). The flutes converge upward, so the lean grows from
+    about 25 deg at the left edge to 45 deg on the right flank; near the left edge the rim falloff sets it,
+    so the rounded flank follows the edge."""
+    H, W = R.shape
+    G = ndi.gaussian_filter(R.astype(np.float64), 1.0)
+    gr, gc = np.gradient(G)
+    gX, gY = gc, -gr                                  # image-mm axes (+y up)
+    rows = np.arange(int(round(r_cut - (y_m + 0.7) / px)), int(round(r_cut - (y_m - 0.3) / px)) + 1)
+    wgt = orig[rows].astype(np.float64)
+    J = [np.sum(wgt * q[rows], 0) for q in (gX * gX, gX * gY, gY * gY)]
+    sg = a.base_dir_sigma / px
+    J = [ndi.gaussian_filter1d(j, sg) for j in J]
+    n = ndi.gaussian_filter1d(wgt.sum(0), sg)
+    lean = np.degrees(0.5 * np.arctan2(2 * J[1], J[0] - J[2]))
+    coh = np.sqrt((J[0] - J[2]) ** 2 + 4 * J[1] ** 2) / np.maximum(J[0] + J[2], 1e-12)
+    cols = np.arange(W)
+    ok = n > 0.5 * len(rows)                         # columns mostly inside the trunk on the strip
+    Xc = cols * px - x0
+    ok &= np.abs(Xc) < a.base_halfwidth
+    xs, ls = Xc[ok], lean[ok]
+    return np.interp(u, xs, ls), float(np.median(coh[ok])), (float(xs.min()), float(xs.max()))
+
+
+def extend_trunk_base(R, orig, px, r_cut, x0, a):
+    """The Tripo trunk droops in the last ~1.5 mm above the cut, where it flares into roots that run down
+    and behind. Continue the trunk straight down instead. Each pixel p samples the relief at a point q on
+    the straight fan line through p that follows the local flute direction (measured at the anchor row
+    y_m = (y_lo + y_hi) / 2): below y_lo, q is on the anchor row (the relief is constant along the flutes,
+    so the rounded, fluted cross-section runs on down to the cut); above y_hi, q = p; in between, q slides
+    from y_m up to p along a C1 soft-max curve. A warp, not a cross-fade, so no flute is doubled where the
+    source flutes curve off toward the roots. Also defines the relief a little below the cut (a virtual
+    continuation), so that the later steps do not treat the cut as a rim."""
+    y_lo, y_hi = a.base_band
+    y_m = 0.5 * (y_lo + y_hi)
+    dy = y_hi - y_lo
+    H, W = R.shape
+    u = np.arange(-a.base_halfwidth - 6.0, a.base_halfwidth + 6.0, px / 4)
+    lean, coh, span = base_lean_profile(R, orig, px, r_cut, x0, a, u, y_m)
+    tan_th = np.tan(np.radians(lean))
+    cols = np.arange(int(math.floor((x0 - a.base_halfwidth) / px)), int(math.ceil((x0 + a.base_halfwidth) / px)) + 1)
+    Xc = cols * px - x0
+    out = R.copy()
+    r_start = int(math.floor(r_cut - y_hi / px)) - 1
+    r_end = int(math.ceil(r_cut + a.base_below / px))
+    min_slope = np.inf
+    for r in range(max(r_start, 0), min(r_end, H - 1) + 1):
+        y = (r_cut - r) * px
+        if y >= y_hi:
+            continue
+        yq = y_m if y <= y_lo else y_m + (y - y_lo) ** 2 / (2.0 * dy)   # sample height (C1, monotone)
+        xu = u + (y_m - y) * tan_th                   # where each fan line crosses this row
+        if y >= 0:                                    # fan spread inside the trunk (1 = parallel lines)
+            insp = (xu >= Xc[0]) & (xu <= Xc[-1]) & (u >= span[0]) & (u <= span[1])
+            min_slope = min(min_slope, float(np.min(np.diff(xu)[insp[:-1]])) / (u[1] - u[0]))
+        xu = np.maximum.accumulate(xu)                # fan lines never cross
+        uq = np.interp(Xc, xu, u)
+        xq = uq + (y_m - yq) * np.interp(uq, u, tan_th)
+        out[r, cols] = ndi.map_coordinates(R, [np.full(len(cols), r_cut - yq / px), (xq + x0) / px],
+                                           order=1, mode='nearest')
+    sel = (u >= span[0]) & (u <= span[1])
+    info = {'band_mm': [y_lo, y_hi], 'anchor_row_mm': y_m, 'flute_lean_deg_on_anchor_row': {
+                'left_edge': round(float(lean[sel][0]), 1), 'min': round(float(lean[sel].min()), 1),
+                'median': round(float(np.median(lean[sel])), 1), 'max': round(float(lean[sel].max()), 1),
+                'right_edge': round(float(lean[sel][-1]), 1)},
+            'trunk_x_on_anchor_row_mm': [round(span[0], 3), round(span[1], 3)],
+            'flute_coherence_median': round(coh, 3), 'fan_min_dx_du_above_cut': round(min_slope, 3)}
+    return out.astype(np.float32), info
+
+
 def build_heights(F, plane, m_src, region, flare, gapmask, sk_info, px, scale, r_cut, x0, a):
     """Returns Z (mm thickness) on the full grid, extended outside `region` for sampling."""
     import cv2
@@ -499,6 +620,16 @@ def build_heights(F, plane, m_src, region, flare, gapmask, sk_info, px, scale, r
         Rd = np.where(orig, Rd, Rf)
         Rd = nearest_fill(Rd, orig).astype(np.float32)
     Rext = Rd
+    # trunk base: keep the full trunk relief down to the cut (the source droops into its roots there)
+    base_info = None
+    region_d = region                                   # region for distances: the cut is not a rim
+    if a.base_band[1] > a.base_band[0] >= 0:
+        Rext, base_info = extend_trunk_base(Rext, orig, px, r_cut, x0, a)
+        rows_in = np.nonzero(region.any(1))[0]
+        r_last = rows_in.max()
+        r_end = min(int(math.ceil(r_cut + a.base_below / px)), H - 1)
+        region_d = region.copy()
+        region_d[r_last + 1:r_end + 1] = region[r_last][None, :] & (np.abs(cc[0] * px - x0) < a.base_halfwidth)
     # thin stems: stretch the round cross-section to the new width instead of padding it
     sk, dist, thin, r, rp = sk_info
     if thin.any():
@@ -525,23 +656,23 @@ def build_heights(F, plane, m_src, region, flare, gapmask, sk_info, px, scale, r
         dfl = ndi.distance_transform_edt(~orig) * px
         Rext = np.where(flare, Rext - a.flare_slope * dfl, Rext)
         fz = ndi.binary_dilation(flare, iterations=6) & region
-        Rext = np.where(fz, masked_blur(Rext, region, 4.0), Rext)
+        Rext = np.where(fz, masked_blur(Rext, region_d, 4.0), Rext)
     # small blend across every filled area so no step remains at the seams
     added = region & ~orig
     if added.any():
         band = ndi.binary_dilation(added | stretch_zone, iterations=2) & region
-        Rb = masked_blur(Rext, region, 1.0)
+        Rb = masked_blur(Rext, region_d, 1.0)
         Rext = np.where(band, Rb, Rext)
     # rim: the outermost pixels of the depth map are grazing-angle samples (noisy); take the rim
     # height from just inside so the top edge of the walls runs clean
-    din_px = ndi.distance_transform_edt(region)
+    din_px = ndi.distance_transform_edt(region_d)
     if a.rim_band > 0:
         # first-order normalized convolution from a smoothed surface further in: every band pixel
         # gets the Gaussian-weighted average of the tangent-plane predictions of the good pixels
         # around it (smooth along the edge, continues the rim slope, no lip and no streaks)
-        deep = (region & (din_px >= a.rim_band + 1.5)).astype(np.float64)
-        band = region & (din_px < a.rim_band)
-        Gs = masked_blur(Rext, region & (din_px >= a.rim_band), 1.0).astype(np.float64)
+        deep = (region_d & (din_px >= a.rim_band + 1.5)).astype(np.float64)
+        band = region_d & (din_px < a.rim_band)
+        Gs = masked_blur(Rext, region_d & (din_px >= a.rim_band), 1.0).astype(np.float64)
         gy, gx = np.gradient(Gs)
         sg = 2.0
         Wt = ndi.gaussian_filter(deep, sg)
@@ -554,23 +685,23 @@ def build_heights(F, plane, m_src, region, flare, gapmask, sk_info, px, scale, r
         # blend from the extrapolation (outer band) back into the surface over rim_blend pixels: a hard
         # switch leaves a step that wanders along the rim, about 0.08 mm inside every top edge
         wb = np.clip((a.rim_band + a.rim_blend - din_px) / max(a.rim_blend, 1e-6), 0.0, 1.0)
-        wb = np.where(region & (Wt > 1e-3), wb, 0.0)
+        wb = np.where(region_d & (Wt > 1e-3), wb, 0.0)
         Rext = (wb * v + (1.0 - wb) * Rext).astype(np.float32)
         # the same smooth extrapolation a few pixels beyond the outline: the outline vertices sit between
         # pixel centres and sample the grid bilinearly, and a nearest-pixel extension there would print
         # its Voronoi staircase into the rim as tiny facets and pits
-        ext_band = ~region & (ndi.distance_transform_edt(~region) <= a.rim_ext) & (Wt > 1e-4)
+        ext_band = ~region_d & (ndi.distance_transform_edt(~region_d) <= a.rim_ext) & (Wt > 1e-4)
         Rext = np.where(ext_band, v, Rext).astype(np.float32)
     else:
         ext_band = np.zeros_like(region)
     # band-pass detail boost (midribs, fluting, leaf rims) computed inside the final region only
     s1 = a.detail_s1 / px
     s2 = a.detail_s2 / px
-    G1 = masked_blur(Rext, region, s1) if s1 > 0.2 else Rext
-    G2 = masked_blur(Rext, region, s2)
+    G1 = masked_blur(Rext, region_d, s1) if s1 > 0.2 else Rext
+    G2 = masked_blur(Rext, region_d, s2)
     detail = G1 - G2
     # attenuate the boost right at the silhouette (the rim drop is already strong there)
-    din = ndi.distance_transform_edt(region) * px
+    din = ndi.distance_transform_edt(region_d) * px
     w_edge = np.clip(din / a.detail_edge, 0, 1) ** 2
     Renh = Rext + a.detail_gain * detail * w_edge
     # map to thickness: base at the rim level, gain above it
@@ -578,10 +709,13 @@ def build_heights(F, plane, m_src, region, flare, gapmask, sk_info, px, scale, r
     # thickness floors: thicker where leaves hang beyond the plaque
     X = cc * px - x0
     Y = (r_cut - rr) * px
-    pr = a.plaque_rect
-    inside = (X > pr[0]) & (X < pr[2]) & (Y > pr[1]) & (Y < pr[3])
-    fl = np.where(inside, a.floor_in, a.floor_out).astype(np.float32)
-    fl = ndi.gaussian_filter(fl, 1.0 / px)
+    if a.floor_in != a.floor_out:           # zoning only on request (it ties the tree to one card layout)
+        pr = a.plaque_rect
+        inside = (X > pr[0]) & (X < pr[2]) & (Y > pr[1]) & (Y < pr[3])
+        fl = np.where(inside, a.floor_in, a.floor_out).astype(np.float32)
+        fl = ndi.gaussian_filter(fl, 1.0 / px)
+    else:
+        fl = np.float32(a.floor_out)
     # soft floor: identity above floor + d, exponential approach to the floor below it, so low
     # areas (root flare, petiole ends) keep a gentle shape instead of a flat clamp
     d_ = a.floor_soft
@@ -591,9 +725,9 @@ def build_heights(F, plane, m_src, region, flare, gapmask, sk_info, px, scale, r
     over = Z > c0
     Z = np.where(over, c0 + a.cap_soft * np.tanh((Z - c0) / a.cap_soft), Z)
     Z = Z.astype(np.float32)
-    Zext = nearest_fill(Z, region | ext_band).astype(np.float32)
+    Zext = nearest_fill(Z, region_d | ext_band).astype(np.float32)
     stats = {'spikes_replaced_px': int(spike.sum()), 'stretch_zone_px': int(stretch_zone.sum()),
-             'added_px': int(added.sum())}
+             'added_px': int(added.sum()), 'trunk_base_extension': base_info}
     return Zext, Rext, stats
 
 
@@ -990,6 +1124,29 @@ def opening_residual(poly, r):
     return float(res.area), float(max([g.area for g in parts], default=0.0))
 
 
+def pinch_widths(top, centres, half=0.9):
+    """Exact wall-to-wall distance of each widened pinch: in a window around it, the smallest distance
+    between two pieces of the outline whose connecting segment runs through open space (a gap, not a stem)."""
+    from shapely.geometry import box, LineString
+    from shapely.ops import nearest_points
+    out = []
+    for cx, cy in centres:
+        b = top.boundary.intersection(box(cx - half, cy - half, cx + half, cy + half))
+        parts = [g for g in getattr(b, 'geoms', [b]) if g.length > 0.05]
+        best = None
+        for i in range(len(parts)):
+            for j in range(i + 1, len(parts)):
+                p_, q_ = nearest_points(parts[i], parts[j])
+                seg = LineString([p_, q_])
+                if top.contains(seg.interpolate(0.5, normalized=True)):
+                    continue                                   # across a stem
+                if best is None or seg.length < best[0]:
+                    best = (seg.length, seg.interpolate(0.5, normalized=True))
+        out.append({'xy': [round(cx, 2), round(cy, 2)], 'wall_distance_mm': round(best[0], 4) if best else None,
+                    'at': [round(best[1].x, 3), round(best[1].y, 3)] if best else None})
+    return out
+
+
 def gap_check(poly, px=0.02):
     """Minimum open gap between parts: local width of the complement inside the hull."""
     hull = poly.convex_hull.buffer(1.0)
@@ -1052,12 +1209,15 @@ def run_checks(mesh_v, mesh_f, groups, chamfer):
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--glb', default=DEFAULT_GLB)
-    ap.add_argument('--cache', default=None, help='dir with tree_front/back.npz (default: the shared work dir, else <work>/depth_cache)')
-    ap.add_argument('--regen', action='store_true', help='re-decode the GLB and re-cast the depth maps')
+    ap.add_argument('--depth', default=DEFAULT_DEPTH,
+                    help='depth-map cache (q16 .npz, committed). If missing it is regenerated from --glb (needs node/npx)')
+    ap.add_argument('--regen', action='store_true',
+                    help='re-decode the GLB, re-cast the depth maps and overwrite --depth (needs node/npx)')
+    ap.add_argument('--float-cache', default=None,
+                    help='read full-precision tree_front.npz / tree_back.npz from this dir instead of --depth (checks)')
     ap.add_argument('--res', type=float, default=0.0003, help='depth map resolution for --regen (model units/px)')
     ap.add_argument('--out', default=os.path.join(HERE, 'out'))
-    ap.add_argument('--work', default=os.path.join(SHARED_WORK, 'agents', 'tree_final') if os.path.isdir(SHARED_WORK)
-                    else os.path.join(HERE, 'cache'), help='scratch dir for intermediate grids')
+    ap.add_argument('--work', default=DEFAULT_WORK, help='scratch dir (regenerated GLB data, height grid)')
     ap.add_argument('--scale', type=float, default=110.7, help='mm per model unit')
     ap.add_argument('--cut-world-y', type=float, default=-0.1540, help='trunk cut height (model y); -0.154 = depth row 1478')
     # thickness mapping
@@ -1099,6 +1259,13 @@ def parse_args(argv=None):
     ap.add_argument('--root-radius', type=float, default=0.55,
                     help='parts of the trunk base thinner than 2x this are trimmed to a round cap (0 = off)')
     ap.add_argument('--root-zone', type=float, default=1.5, help='height above the cut where the root trim applies (mm)')
+    ap.add_argument('--base-band', type=float, nargs=2, default=[1.0, 3.0], metavar=('Y_LO', 'Y_HI'),
+                    help='trunk base (mm above the cut): below Y_LO the relief of the row midway between Y_LO and Y_HI '
+                         'is continued straight down along the flutes, warped back into the source by Y_HI '
+                         '(0 0 = off: the drooping source heights)')
+    ap.add_argument('--base-dir-sigma', type=float, default=0.8, help='smoothing of the measured flute direction along x (mm)')
+    ap.add_argument('--base-halfwidth', type=float, default=8.0, help='half width of the trunk-base zone (mm)')
+    ap.add_argument('--base-below', type=float, default=1.5, help='virtual trunk continued this far below the cut (mm)')
     ap.add_argument('--flare-left', type=float, default=0.9, help='left root flare width at the cut (mm, 0 = off)')
     ap.add_argument('--flare-height', type=float, default=3.0, help='left root flare height (mm)')
     ap.add_argument('--flare-slope', type=float, default=0.35, help='height drop per mm across the flare')
@@ -1130,12 +1297,14 @@ def parse_args(argv=None):
 def main(argv=None):
     a = parse_args(argv)
     os.makedirs(a.out, exist_ok=True)
-    # depth maps: the shared cache when it exists, else (and always with --regen) a cache in the work dir
-    cache = a.cache or (SHARED_WORK if os.path.exists(os.path.join(SHARED_WORK, 'tree_front.npz')) and not a.regen
-                        else os.path.join(a.work, 'depth_cache'))
-    if a.regen or not os.path.exists(os.path.join(cache, 'tree_front.npz')):
-        regen_cache(a.glb, cache, a.res)
-    F, B, ys, res = load_depth(cache)
+    # depth maps: the committed q16 cache; regenerated from the GLB on request or when it is missing
+    if a.float_cache:
+        F, B, ys, res = load_depth_float(a.float_cache)
+    else:
+        if a.regen or not os.path.exists(a.depth):
+            log(f'depth cache {a.depth}: ' + ('regenerating (--regen)' if a.regen else 'missing, regenerating from the GLB'))
+            save_depth_q16(a.depth, regen_depth(a.glb, a.work, a.res))
+        F, B, ys, res = load_depth(a.depth)
     px = res * a.scale
     r_cut = (ys[0] - a.cut_world_y) / res
     log(f'depth {F.shape}, {px:.4f} mm/px, cut row {r_cut:.1f}')
@@ -1190,6 +1359,7 @@ def main(argv=None):
                                          'max': round(float(cvals.max()), 4),
                                          'fraction_full': round(float(np.mean(cvals > a.chamfer - 0.005)), 3)}}
     log('glue inset', sd)
+    a._x_left, a._x_right = x_left - x0, x_right - x0
     write_outputs(a, allv, allf, groups, glue, top_outline, checks, tm, oinfo, mask_info, hstats, rhist,
                   x_left - x0, x_right - x0, sd, px, plane, Zext, region, shift, err)
     if not a.no_previews:
@@ -1198,7 +1368,8 @@ def main(argv=None):
         bx = P3.bounds
         m_ = 0.5 / px
         hill_crop = (bx[0] / px - m_, -bx[3] / px - m_, bx[2] / px + m_, -bx[1] / px + m_)
-        tree_previews.make_all(a.out, allv, allf, groups, top_outline, glue, hill_crop=hill_crop)
+        hill = tree_previews.source_hillshade(F, px, a.scale)
+        tree_previews.make_all(a.out, allv, allf, groups, top_outline, glue, hill_crop=hill_crop, hill_img=hill)
         tree_previews.layer_preview(a.out, Zext, region, px)
         log('previews written')
     if not a.no_report:
@@ -1256,6 +1427,29 @@ def rim_roughness(tm, step=0.008, wins=((41, 28.6), (-26, 28.5), (0, 44), (10, 2
     return {'mm_inside_edge': res, 'windows_xy': [list(w) for w in wins]}
 
 
+def trunk_base_profile(tm, x_left, x_right, floor, rows=(0.02, 0.5, 1.0, 2.0, 3.0), step=0.02):
+    """Thickness of the finished solid along horizontal lines just above the trunk cut (vertical rays): does
+    the trunk keep its relief down to the cut? Per row: extent hit, min / p25 / median / max of the top z,
+    and the share of the row within 0.2 mm of the thickness floor."""
+    out = {}
+    for y in rows:
+        xs = np.arange(x_left - 2.0, x_right + 2.0, step)
+        O = np.c_[xs, np.full(len(xs), y), np.full(len(xs), 10.0)]
+        loc, idx, _ = tm.ray.intersects_location(O, np.tile([0, 0, -1.0], (len(O), 1)), multiple_hits=False)
+        z = np.full(len(xs), np.nan)
+        z[idx] = loc[:, 2]
+        hit = ~np.isnan(z)
+        # the trunk run: the hit run that contains x = 0 at the cut, or the one nearest to it
+        runs = np.split(np.nonzero(hit)[0], np.nonzero(np.diff(np.nonzero(hit)[0]) > 1)[0] + 1)
+        run = min(runs, key=lambda r_: abs(xs[r_].mean() - (x_left + x_right) / 2) if len(r_) else 1e9)
+        zz = z[run]
+        out[f'{y}'] = {'x_from': round(float(xs[run[0]]), 2), 'x_to': round(float(xs[run[-1]]), 2),
+                       'min': round(float(zz.min()), 3), 'p25': round(float(np.percentile(zz, 25)), 3),
+                       'median': round(float(np.median(zz)), 3), 'max': round(float(zz.max()), 3),
+                       'share_within_0.2_of_floor': round(float(np.mean(zz < floor + 0.2)), 3)}
+    return out
+
+
 def solid_checks(tm, glue, top, a):
     """Checks on the finished solid that do not trust the construction:
     * vertical rays on a grid: each column must cross the surface exactly 0 or 2 times (a heightfield,
@@ -1293,6 +1487,7 @@ def solid_checks(tm, glue, top, a):
         'note': 'thickness = height of the top surface above the bed in each column (the chamfer band '
                 'columns are included: their top is the relief, their bottom the chamfer)'}
     out['rim_roughness'] = rim_roughness(tm)
+    out['trunk_base_profile'] = trunk_base_profile(tm, a._x_left, a._x_right, a.floor_out)
     mm = manifold3d.Manifold(manifold3d.Mesh(vert_properties=np.asarray(tm.vertices, np.float32),
                                              tri_verts=np.asarray(tm.faces, np.uint32)))
     secs = {}
@@ -1366,7 +1561,9 @@ def write_outputs(a, V, Fc, groups, glue, top, checks, tm, oinfo, minfo, hstats,
     comp = top.convex_hull.buffer(2.0).difference(top)
     t_tot, t_max = opening_residual(top, a.tip_radius - 0.01)
     g_tot, g_max = opening_residual(comp, a.min_gap / 2 - 0.01)
+    pinches = [g['xy_image_mm'] for g in oinfo.get('gap_fix', []) if g['action'].startswith('pinch')]
     exact = {
+        'pinch_wall_distance_mm': pinch_widths(top, [(x + shift[0], y + shift[1]) for x, y in pinches]),
         'tip_opening_residual_mm2': {'total': round(t_tot, 5), 'largest_piece': round(t_max, 5)},
         'gap_opening_residual_mm2': {'total': round(g_tot, 5), 'largest_piece': round(g_max, 5)},
         'tip_radius_tested_mm': round(a.tip_radius - 0.01, 3),
@@ -1430,7 +1627,7 @@ def write_outputs(a, V, Fc, groups, glue, top, checks, tm, oinfo, minfo, hstats,
         'mask_info': minfo,
         'height_info': hstats,
         'back_plane_coef': [float(c) for c in plane],
-        'parameters': {k: v for k, v in vars(a).items()},
+        'parameters': {k: rel_path(v) if isinstance(v, str) else v for k, v in vars(a).items() if not k.startswith('_')},
         'shift_image_to_canonical_mm': list(shift),
     }
     with open(os.path.join(out, 'tree_meta.json'), 'w') as f:
@@ -1439,6 +1636,13 @@ def write_outputs(a, V, Fc, groups, glue, top, checks, tm, oinfo, minfo, hstats,
     os.makedirs(a.work, exist_ok=True)
     np.savez_compressed(os.path.join(a.work, 'zgrid.npz'), Z=Zext, region=region, px=px, shift=np.array(shift))
     log('wrote footprint/meta')
+
+
+def rel_path(p):
+    """Paths inside place-cards/ as relative paths (meta stays the same wherever the repo is cloned)."""
+    if os.path.isabs(p) and p.startswith(REPO_PC + os.sep):
+        return os.path.relpath(p, REPO_PC)
+    return p
 
 
 def Polygon_area(ring):
