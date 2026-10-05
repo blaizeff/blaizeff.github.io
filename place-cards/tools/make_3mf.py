@@ -707,7 +707,8 @@ def build(args):
         so.append("  </object>")
         settings_objects.append("\n".join(so))
         if it.layer_ranges:
-            layer_ranges.append((oi + 1, [(z0 - it.lo[2], z1 - it.lo[2], h) for z0, z1, h in it.layer_ranges]))
+            layer_ranges.append((oi + 1, [(r[0] - it.lo[2], r[1] - it.lo[2], r[2], r[3] if len(r) > 3 else [])
+                                          for r in it.layer_ranges]))
         o["oid"] = oid
 
     # ---- assemble the package
@@ -775,9 +776,10 @@ def build(args):
     lr = ['<?xml version="1.0" encoding="utf-8"?>', "<objects>"]
     for ordinal, ranges in layer_ranges:
         lr.append(f' <object id="{ordinal}">')
-        for z0, z1, h in ranges:
-            lr += [f'  <range min_z="{z0:.10g}" max_z="{z1:.10g}">', f'   <option opt_key="layer_height">{h:g}</option>',
-                   "  </range>"]
+        for z0, z1, h, opts in sorted(ranges):
+            lr += [f'  <range min_z="{z0:.10g}" max_z="{z1:.10g}">', f'   <option opt_key="layer_height">{h:g}</option>']
+            lr += [f'   <option opt_key="{k}">{xml_esc(v)}</option>' for k, v in opts]
+            lr.append("  </range>")
         lr.append(" </object>")
     lr += ["</objects>", ""]
     files["Metadata/layer_config_ranges.xml"] = "\n".join(lr).encode()
