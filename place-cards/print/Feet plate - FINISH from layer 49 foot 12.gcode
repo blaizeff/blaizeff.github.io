@@ -28,21 +28,29 @@ M104 S140
 M190 S60
 G4 P180000 ; let the plate soak 3 min at temperature (it was cold)
 SET_KINEMATIC_POSITION Z=80 ; the bed has not moved since the failed job parked it
-G28 X Y ; home X and Y only
-G1 Z40 F600 ; bed up slowly, still far below the nozzle
-G1 X245 Y245 F12000 ; over the empty corner
-M109 S220
-G1 Z5 F300 ; CHECK 1: nozzle about 5 mm above the empty plate
-G4 P20000
-G1 Z2 F300 ; CHECK 2: nozzle about 2 mm above the empty plate (press Stop if touching or far above)
-G4 P20000
+G28 X Y ; home X and Y only. If the head goes to the bed centre and the bed rises: POWER OFF
+G1 X245 Y245 F12000 ; over the empty corner, bed still parked
+G1 Z60 F600 ; CHECK A: gap about 60 mm
+G4 P15000
+G1 Z30 F600 ; CHECK B: gap about 30 mm
+G4 P15000
+G1 Z10 F300 ; CHECK C: gap about 10 mm
+G4 P15000
+G1 Z5 F300 ; CHECK D: gap about 5 mm
+G4 P15000
+G1 Z2 F300 ; CHECK E: gap about 2 mm
+G4 P15000
+G1 Z0.2 F120 ; CHECK F: paper test, a sheet should just drag under the nozzle (nozzle at 140 C, no ooze)
+G4 P60000
+G1 Z2 F300
+M109 S220 ; heat at the corner: any ooze falls on the empty plate
 G1 Z0.5 F300
 G92 E0
 G1 E6 F120 ; purge on the empty corner
 M106 S200
-G1 X215 E20 F1200 ; purge line
+G1 Y222 E20 F1200 ; purge line along the empty right edge
 G1 F6000
-G1 X210 E0.8
+G1 Y219 E0.8
 M106 S0
 G1 E-.8 F1800 ; retract as at the cut point
 G1 Z12 F600 ; up above every part before travelling
