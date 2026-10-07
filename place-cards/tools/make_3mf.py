@@ -91,7 +91,8 @@ CARD_GOLD_TOP_LAYER = [("outer_wall_speed", "20"), ("inner_wall_speed", "20"), (
 # spans under the visible top and weaken the roof over the shot, so the feet keep their solid.)
 FOOT_TIME = [("bridge_speed", "80"), ("inner_wall_acceleration", "10000")]
 FOOT_RANGES = []
-PAUSE_BED_DROP_TO = 60      # nozzle height (mm above the bed) while the feet pause for the steel shot
+PAUSE_BED_DROP_TO = 200     # nozzle height while the feet pause: the bed goes near the bottom (room to fill), and
+                            # stays 50 mm clear of the end of travel in case the printer's own pause lifts further
 # Project: travels used to inherit the last feature's acceleration (2500 / 5000); first-layer travels stay at 500
 PROJECT_TIME = [("travel_acceleration", "10000"), ("initial_layer_travel_acceleration", "5%")]
 # --fast: a little more time saved with changes that could show on very close inspection (the user chooses):
@@ -313,8 +314,9 @@ def plan_plates(items, args, bed):
             if not pos:
                 raise SystemExit(f"{group[0].name} does not fit on the bed")
             n = len(pos)
-            if args.max_per_plate:
-                n = min(n, args.max_per_plate)
+            cap = (args.max_feet_per_plate or args.max_per_plate) if kind == "foot" else args.max_per_plate
+            if cap:
+                n = min(n, cap)
             # centre the block of placed items on the bed (keeping clear of the tower)
             sizes = [((it.size[0], it.size[1]) if rot == 0 else (it.size[1], it.size[0])) for it in group[:n]]
             xs0 = min(p[0] - s[0] / 2 for p, s in zip(pos[:n], sizes))
@@ -520,6 +522,7 @@ def nest_plates(items, args, bed, ps):
         group = [it for it in items if it.kind == kind and not getattr(it, "spare", False)]
         spares = [it for it in items if it.kind == kind and getattr(it, "spare", False)]
         multi = any(len(it.filaments) > 1 for it in group)
+        cap = (args.max_feet_per_plate or args.max_per_plate) if kind == "foot" else args.max_per_plate
         spots = tower_spots(bed, args.margin, excl, tw) if multi else [(None, None)]
         # biggest first: long names find room while the plate is empty
         group.sort(key=lambda it: -(it.size[0] * it.size[1]))
@@ -534,7 +537,7 @@ def nest_plates(items, args, bed, ps):
             for ang, rule, spot in strategies:
                 pl = Plate(bed, args.margin, grow, excl + ([spot[0]] if spot[0] else []))
                 for it in group:
-                    if args.max_per_plate and len(pl.placed) >= args.max_per_plate:
+                    if cap and len(pl.placed) >= cap:
                         break
                     pl.try_place(it, ang, grow, rule)
                 if best is None or len(pl.placed) > len(best[0].placed):
@@ -554,6 +557,8 @@ def nest_plates(items, args, bed, ps):
         for it in spares:
             for pl, _ in kind_plates:
                 ang, rule, _ = best_strategy
+                if cap and len(pl.placed) >= cap:
+                    continue
                 if pl.try_place(it, ang, grow, rule):
                     added += 1
                     break
@@ -803,9 +808,11 @@ def build(args):
     # firmware's M600 restores, the nozzle ends 0.4 mm above the last layer before printing goes on.
     pz_ = pause_height(args)
     if pz_:
-        ps["machine_pause_gcode"] = (f"G1 Z{PAUSE_BED_DROP_TO:g} F600 ; lower the bed so the pockets are easy to fill\n"
+        ps["machine_pause_gcode"] = (f"G1 Z{PAUSE_BED_DROP_TO:g} F1200 ; lower the bed near the bottom so the pockets are easy to fill\n"
                                      f"M400\n{ps.get('machine_pause_gcode') or 'M600'}\n"
-                                     f"G1 Z{pz_ + 0.2:g} F600 ; bed back up, 0.4 mm above the last layer")
+                                     f"G1 Z{pz_ + 0.2:g} F900 ; bed back up, 0.4 mm above the last layer")
+        # (a different feedrate on purpose: Orca drops an F equal to the previous one, and after the
+        # printer's own pause/resume the active feedrate is unknown)
     for j, k in enumerate(("wipe_tower_x", "wipe_tower_y")):
         if isinstance(ps.get(k), list) and ps[k]:
             ps[k] = (ps[k] + [ps[k][-1]] * n_plates)[:max(n_plates, len(ps[k]))]
@@ -1239,6 +1246,8 @@ def main(argv=None):
                     help="nest: real silhouettes, any rotation, fewest plates (default); shelf: bounding-box rows")
     ap.add_argument("--spares", type=int, default=0, help="extra trees / feet, only where they fit without a new plate")
     ap.add_argument("--max-per-plate", type=int, default=0)
+    ap.add_argument("--max-feet-per-plate", type=int, default=0,
+                    help="cap on feet only (a failed feet plate then costs less filament and time)")
     ap.add_argument("--plate-prefix", default="Plate")
     ap.add_argument("--title", default="Wedding place cards")
     ap.add_argument("--slice-check", action="store_true", help="also slice every flattened plate with PrusaSlicer")

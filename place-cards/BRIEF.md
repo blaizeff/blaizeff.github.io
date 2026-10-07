@@ -99,6 +99,16 @@ the user's real guest list: keep it.
      The weight is in the steel, so the foot is back to the slim 18 → 11 profile with `slot_y = -1.0`
      at 15 % lightning infill. Filled to 90 %, every card needs at least 25° to tip backwards (58° to
      the side); empty, 14.5°.
+   * **Feet plates and the pause (user decision, 2026-10-07, after a 42-foot plate was lost):** at most
+     14 feet per plate (`--max-feet-per-plate`, `build_production.py --max-feet 14`): a failed plate costs
+     3 h 22 min and 77 g, not 10 h. At the pause the bed drops to Z 200 (`PAUSE_BED_DROP_TO`; 56 mm
+     short of the 256 mm travel so the printer's own pause move cannot run out of range) and comes back
+     at F900 to 0.4 mm above the last layer. Fill each pocket to about 1 mm under the edge, lock the shot
+     with a few drops of thin super glue and let it set before resuming (the toolhead is magnetic: loose
+     shot jumped into it and caused errors 103 / 104), and keep magnets away from the printer.
+     Finishing a failed plate from the middle is not supported: on the CC2 every start re-homes Z by
+     touching the nozzle down near the chute and must load the filament (`M6211` / `T2`), which a
+     hand-made finishing file got wrong twice; small plates are the safeguard instead.
    * **Name padding (user decision, 2026-10-05):** the gap from the name's right end to the gold border
      equals the gap above and below the cap height (`name_pad`, 8.5 mm). The plaque follows the name
      (`min_w = 0`) and only stays longer when it must reach past the foot (short names such as Alex).

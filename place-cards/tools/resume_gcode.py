@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Finish a print that stopped part-way, on top of the parts still on the bed (Elegoo CC2 / Klipper).
 
+DO NOT USE AS IS (2026-10-07): the output never loads the filament (no M6211 / T2), so the CC2 prints in
+the air, and the CC2's G28 touches the nozzle down near the chute. Kept for reference only; the feet now
+print 14 per plate so a failure is cheap to reprint instead.
+
 Takes the original sliced G-code and cuts it at the travel to a given object in a given layer
 (the first object that is missing that layer), and writes a new G-code that:
   1. heats up WITHOUT the normal start (no bed mesh probing, no Z homing: both would touch the parts),

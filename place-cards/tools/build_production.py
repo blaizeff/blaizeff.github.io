@@ -88,6 +88,7 @@ def main():
     ap.add_argument("--spares", type=int, default=3, help="extra trees and feet, only where they fit")
     ap.add_argument("--tree", default=os.path.join(ROOT, "tree", "out", "tree.stl"))
     ap.add_argument("--foot", default=os.path.join(ROOT, "stl", "foot.stl"))
+    ap.add_argument("--max-feet", type=int, default=14, help="feet per plate (small plates: a failure costs less)")
     ap.add_argument("--export-only", action="store_true")
     ap.add_argument("--no-slice-check", action="store_true")
     ap.add_argument("--fast", action="store_true", help='make_3mf --fast; default output "... - ALL GUESTS - FAST.3mf"')
@@ -108,7 +109,8 @@ def main():
     import make_3mf
     margs = ["--out", args.out, "--title", "Place cards - all guests", "--pack", "nest",
              "--tree", args.tree, "--trees", str(len(names)), "--foot", args.foot, "--feet", str(len(names)),
-             "--spares", str(args.spares), "--gap", "4", "--tree-gap", "3", "--foot-gap", "3"]
+             "--spares", str(args.spares), "--gap", "4", "--tree-gap", "3", "--foot-gap", "3",
+             "--max-feet-per-plate", str(args.max_feet)]
     for c in cards:
         margs += ["--card", c]
     if not args.no_slice_check:
