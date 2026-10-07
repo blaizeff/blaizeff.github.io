@@ -68,20 +68,36 @@ def skip_object(tail, xy, half):
                         break
                 p2 = p2n
                 j += 1
+            # after the last extrusion: drop this object's retract + wipe (Orca may put them after the layer
+            # change comments when the object is the last of its layer), keep everything else in place
+            between = []
+            in_wipe = False
             j = last + 1
-            while j < len(tail) and (tail[j].startswith(("SET_VELOCITY_LIMIT", ";WIPE", "M106", "M73", "G1 F"))
-                                      or (tail[j].startswith("G1 ") and " E-" in tail[j])):
-                if tail[j].startswith(";WIPE_END"):
+            while j < len(tail):
+                t = tail[j]
+                if t.startswith(";WIPE_END"):
                     j += 1
                     break
+                if t.startswith(("SET_VELOCITY_LIMIT", "M106")):
+                    keep.append(t)
+                elif t.startswith(";WIPE_START"):
+                    in_wipe = True
+                elif in_wipe and t.startswith("G1 F"):
+                    pass                                   # the wipe's feedrate
+                elif t.startswith("G1 ") and " E-" in t:
+                    pass                                   # the retract and the wipe moves
+                elif t.startswith((";", "G92 E0")) or not t.strip():
+                    between.append(t)                      # layer change comments etc.
+                else:
+                    break
                 j += 1
-            keep += [l for l in tail[i:j] if l.startswith(("SET_VELOCITY_LIMIT", "M106"))]
+            keep += [l for l in tail[i:last + 1] if l.startswith(("SET_VELOCITY_LIMIT", "M106"))]
             last_of = {}
             for l in keep:                       # the last speed limit and the last of each fan
                 w = l.split()
                 kind = w[0] if w[0] != "M106" else ("M106 " + w[1] if len(w) > 1 and w[1].startswith("P") else "M106")
                 last_of[kind] = l
-            out += list(last_of.values())
+            out += between + list(last_of.values())
             # position after the block: where the wipe ended
             for l in tail[i:j]:
                 _, pos = ext_in(l, pos)
@@ -182,7 +198,9 @@ def main():
         "G1 Z10 F300 ; CHECK C: gap about 10 mm",
         "G4 P15000",
     ] if args.home == "parked" else [
-        "G28 ; normal homing: X/Y to the front-left, then the nozzle touches the BARE plate there (that foot is removed)",
+        "SET_KINEMATIC_POSITION Z=0 ; wherever the bed is now, call it 0 ...",
+        "G1 Z15 F300 ; ... and lower it 15 mm before homing (if the printer errors here, nothing has moved)",
+        "G28 ; normal homing: X/Y to the front-left, then the nozzle touches the BARE plate near the chute (those feet are removed)",
         "G1 Z20 F600 ; bed down 20 mm before any sideways move",
         f"G1 X{ex:g} Y{ey:g} F12000 ; over the empty corner, 20 mm above the plate",
     ]) + [
