@@ -91,6 +91,7 @@ CARD_GOLD_TOP_LAYER = [("outer_wall_speed", "20"), ("inner_wall_speed", "20"), (
 # spans under the visible top and weaken the roof over the shot, so the feet keep their solid.)
 FOOT_TIME = [("bridge_speed", "80"), ("inner_wall_acceleration", "10000")]
 FOOT_RANGES = []
+PAUSE_BED_DROP_TO = 60      # nozzle height (mm above the bed) while the feet pause for the steel shot
 # Project: travels used to inherit the last feature's acceleration (2500 / 5000); first-layer travels stay at 500
 PROJECT_TIME = [("travel_acceleration", "10000"), ("initial_layer_travel_acceleration", "5%")]
 # --fast: a little more time saved with changes that could show on very close inspection (the user chooses):
@@ -797,6 +798,14 @@ def build(args):
     if not args.no_time_opt:
         for k, v in PROJECT_TIME + (FAST_PROJECT if args.fast else []):
             ps[k] = v
+    # The CC2 locks Z while paused and the bed sits right under the gantry at z 6.8: drop the bed before the
+    # pause so the pockets can be filled, and bring it back after resume. Absolute moves only, so whatever the
+    # firmware's M600 restores, the nozzle ends 0.4 mm above the last layer before printing goes on.
+    pz_ = pause_height(args)
+    if pz_:
+        ps["machine_pause_gcode"] = (f"G1 Z{PAUSE_BED_DROP_TO:g} F600 ; lower the bed so the pockets are easy to fill\n"
+                                     f"M400\n{ps.get('machine_pause_gcode') or 'M600'}\n"
+                                     f"G1 Z{pz_ + 0.2:g} F600 ; bed back up, 0.4 mm above the last layer")
     for j, k in enumerate(("wipe_tower_x", "wipe_tower_y")):
         if isinstance(ps.get(k), list) and ps[k]:
             ps[k] = (ps[k] + [ps[k][-1]] * n_plates)[:max(n_plates, len(ps[k]))]
