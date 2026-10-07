@@ -22,6 +22,78 @@ def parse_xy(s):
     return float(x), float(y)
 
 
+def skip_object(tail, xy, half):
+    """Remove an object's blocks from G-code lines: from the descend to layer height before its first extrusion
+    to the end of the retract + wipe after its last one. The head stays lifted and retracted, exactly as on a
+    travel, and the next object's own descend + unretract follow. Speed / fan / progress lines are kept."""
+    cx, cy = xy
+    hx, hy = half
+
+    def ext_in(l, pos):
+        if l[:3] not in ("G1 ", "G0 "):
+            return None, pos
+        p = {w[0]: float(w[1:]) for w in l.split(";")[0].split()[1:] if w[0] in "XYZE"}
+        x, y = p.get("X", pos[0]), p.get("Y", pos[1])
+        e = p.get("E", 0)
+        inside = x is not None and abs(x - cx) < hx and abs(y - cy) < hy
+        return (e > 0, inside), (x, y)
+
+    out, n, i, pos = [], 0, 0, (None, None)
+    while i < len(tail):
+        flag, npos = ext_in(tail[i], pos)
+        if flag and flag[0] and flag[1]:
+            # start of a block: back up over the descend line right before it
+            k = len(out) - 1
+            while k >= 0 and not (out[k].startswith("G1 Z") and len(out[k].split(";")[0].split()) == 2):
+                if out[k].startswith(";LAYER_CHANGE") or (out[k][:3] == "G1 " and " E" in out[k] and "E-" not in out[k]):
+                    k = -1
+                    break
+                k -= 1
+            keep = []
+            if k >= 0:
+                keep = [l for l in out[k:] if l.startswith(("SET_VELOCITY_LIMIT", "M106"))]
+                del out[k:]
+            # skip to the last extrusion inside, then over the retract and wipe
+            last = i
+            j = i
+            p2 = npos
+            while j < len(tail):
+                f2, p2n = ext_in(tail[j], p2)
+                if tail[j].startswith(";LAYER_CHANGE"):
+                    break
+                if f2 and f2[0]:
+                    if f2[1]:
+                        last = j
+                    else:
+                        break
+                p2 = p2n
+                j += 1
+            j = last + 1
+            while j < len(tail) and (tail[j].startswith(("SET_VELOCITY_LIMIT", ";WIPE", "M106", "M73", "G1 F"))
+                                      or (tail[j].startswith("G1 ") and " E-" in tail[j])):
+                if tail[j].startswith(";WIPE_END"):
+                    j += 1
+                    break
+                j += 1
+            keep += [l for l in tail[i:j] if l.startswith(("SET_VELOCITY_LIMIT", "M106"))]
+            last_of = {}
+            for l in keep:                       # the last speed limit and the last of each fan
+                w = l.split()
+                kind = w[0] if w[0] != "M106" else ("M106 " + w[1] if len(w) > 1 and w[1].startswith("P") else "M106")
+                last_of[kind] = l
+            out += list(last_of.values())
+            # position after the block: where the wipe ended
+            for l in tail[i:j]:
+                _, pos = ext_in(l, pos)
+            i = j
+            n += 1
+            continue
+        out.append(tail[i])
+        pos = npos
+        i += 1
+    return out, n
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gcode", required=True)
@@ -31,6 +103,10 @@ def main():
     ap.add_argument("--parked-z", type=float, default=80, help="Z the end G-code of the failed job parked the bed at")
     ap.add_argument("--corner", default="245,245", help="empty bed spot for the height check and the purge line")
     ap.add_argument("--travel-z", type=float, default=12.0, help="safe height over the parts for the first travel")
+    ap.add_argument("--home", choices=["parked", "full"], default="parked",
+                    help="parked: trust the parked bed (SET_KINEMATIC_POSITION) and home X/Y; full: a normal G28 (the CC2 "
+                         "homes X/Y to the front-left and then touches the nozzle down right there: that spot must be bare)")
+    ap.add_argument("--skip-object", action="append", default=[], help="bed x,y of an object to leave out (removed from the bed)")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
@@ -73,6 +149,11 @@ def main():
     layer_no = sum(1 for i in zi if float(lines[i][3:]) <= args.layer_z + 1e-6)
     total = len(zi)
 
+    tail = lines[j:]
+    for spec in args.skip_object:
+        tail, n = skip_object(tail, parse_xy(spec), (hx, hy))
+        print(f"left out the object at {spec}: {n} blocks removed")
+
     head = []
     for l in lines:
         head.append(l)
@@ -80,9 +161,8 @@ def main():
             break
     out = head + [
         f"; ===== FINISH a failed print: from layer {layer_no} (z {args.layer_z:g}) at the object at {cx:g},{cy:g} =====",
-        "; No bed mesh probing and no Z homing: both would touch the parts on the bed.",
-        f"; The bed must still be where the failed job parked it (Z{args.parked_z:g}) and the printer must not have",
-        "; been switched off since. Watch the start and press Stop if the nozzle comes down anywhere but the empty corner.",
+        "; No bed mesh probing: it would touch the parts on the bed.",
+        "; Watch the start and switch off if the nozzle comes down anywhere but the empty corner (or the bare homing spot).",
         "M106 S0",
         "M106 P2 S0",
         "G90",
@@ -91,6 +171,7 @@ def main():
         "M104 S140",
         f"M190 S{bed}",
         "G4 P180000 ; let the plate soak 3 min at temperature (it was cold)",
+    ] + ([
         f"SET_KINEMATIC_POSITION Z={args.parked_z:g} ; the bed has not moved since the failed job parked it",
         "G28 X Y ; home X and Y only. If the head goes to the bed centre and the bed rises: POWER OFF",
         f"G1 X{ex:g} Y{ey:g} F12000 ; over the empty corner, bed still parked",
@@ -100,6 +181,11 @@ def main():
         "G4 P15000",
         "G1 Z10 F300 ; CHECK C: gap about 10 mm",
         "G4 P15000",
+    ] if args.home == "parked" else [
+        "G28 ; normal homing: X/Y to the front-left, then the nozzle touches the BARE plate there (that foot is removed)",
+        "G1 Z20 F600 ; bed down 20 mm before any sideways move",
+        f"G1 X{ex:g} Y{ey:g} F12000 ; over the empty corner, 20 mm above the plate",
+    ]) + [
         "G1 Z5 F300 ; CHECK D: gap about 5 mm",
         "G4 P15000",
         "G1 Z2 F300 ; CHECK E: gap about 2 mm",
@@ -128,7 +214,7 @@ def main():
         f"SET_PRINT_STATS_INFO TOTAL_LAYER={total} CURRENT_LAYER={layer_no}",
         f";LAYER_COUNT:{total}",
         "; ===== the original G-code from here =====",
-    ] + lines[j:]
+    ] + tail
     open(args.out, "w").write("\n".join(l for l in out if l is not None) + "\n")
     print(f"cut at original line {j + 1} (layer {layer_no}/{total}, z {args.layer_z:g}); object starts at "
           f"{sx:g},{sy:g}; wrote {args.out}")
