@@ -5,3 +5,5 @@ renders/variants/
 # Per-guest plaque exports (tools/build_production.py); the production 3MF carries them
 stl/all/
 print/*.json
+# OrcaSlicer CLI status file, written to the working directory when slicing
+result.json
