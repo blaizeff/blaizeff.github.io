@@ -5,9 +5,13 @@ ElegooSlicer), re-nesting that plate so everything fits, and leave the rest of t
   python3 tools/add_cards.py --in "their project.3mf" --plate 4 \\
       --card "Blaize=stl/all/plaque_Blaize_base.stl,stl/all/plaque_Blaize_gold.stl" \\
       --card "Katya=stl/all/plaque_Katya_base.stl,stl/all/plaque_Katya_gold.stl" \\
+      --remove Alex --remove Melody --card "Mélody=stl/all/plaque_Mélody_base.stl,stl/all/plaque_Mélody_gold.stl" \\
       --out "print/their project - with Blaize and Katya.3mf"
 
 What changes:
+  * --remove NAME: that card leaves the project entirely, from whatever plate it was on (object,
+    build item, mesh file, rels, settings, plate instance, assemble item, layer ranges; the layer
+    ranges of later objects move up one position, since the file counts objects by position);
   * new cards: their object files, resources, build items, rels, model_settings objects (object and
     part settings copied from a card already on that plate, so the user's own tweaks carry over),
     layer ranges (copied from that card too), plate instances and assemble items;
@@ -96,7 +100,9 @@ def main(argv=None):
     ap.add_argument("--in", dest="inp", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--plate", type=int, required=True, help="plate number as shown in the slicer (1 = first)")
-    ap.add_argument("--card", action="append", required=True, help="NAME=base.stl,gold.stl")
+    ap.add_argument("--card", action="append", default=[], help="NAME=base.stl,gold.stl (a new card for --plate)")
+    ap.add_argument("--remove", action="append", default=[],
+                    help="exact name of a card to take out of the project, from whatever plate it is on")
     ap.add_argument("--gap", type=float, default=4.0, help="gap between cards (mm), as make_3mf.py")
     ap.add_argument("--margin", type=float, default=3.0, help="keep this far from the bed edge (mm)")
     args = ap.parse_args(argv)
@@ -108,10 +114,58 @@ def main(argv=None):
     rels_txt = files["3D/_rels/3dmodel.model.rels"].decode("utf-8")
     lr_txt = files["Metadata/layer_config_ranges.xml"].decode("utf-8")
     ps = json.loads(files["Metadata/project_settings.config"])
-    model_root = ET.fromstring(files["3D/3dmodel.model"])
-    ms_root = ET.fromstring(files["Metadata/model_settings.config"])
-    lr_root = ET.fromstring(files["Metadata/layer_config_ranges.xml"])
     bed = C.BED
+
+    # ---- cards to take out: every trace of the object; the layer ranges of the objects after it move
+    # up one position (layer_config_ranges.xml counts objects by position, not by id)
+    touched = {args.plate}
+    if args.remove:
+        root0, ms0 = ET.fromstring(model_txt), ET.fromstring(ms_txt)
+        objs0 = ms_objects(ms0)
+        res0 = [o.get("id") for o in root0.find("m:resources", NS).findall("m:object", NS)]
+        drop = []
+        for nm in args.remove:
+            hit = [oid for oid, (n, _, parts) in objs0.items() if n == nm and tuple(p[1] for p in parts) == CARD_PARTS]
+            if len(hit) != 1:
+                raise SystemExit(f"--remove {nm!r}: {len(hit)} cards with that exact name")
+            drop.append(hit[0])
+        touched |= {pl[0] for pl in plates_of(ms0) if any(o in drop for o, _, _ in pl[2])}
+        users = {}
+        for o in root0.find("m:resources", NS).findall("m:object", NS):
+            for c in o.find("m:components", NS).findall("m:component", NS):
+                users.setdefault(c.get(P_NS + "path"), set()).add(o.get("id"))
+        dead = [path for path, u in users.items() if u <= set(drop)]
+
+        def cut(txt, pattern, n=1):
+            out, k = re.subn(pattern, "", txt, flags=re.S)
+            if (n is not None and k != n) or k == 0:
+                raise SystemExit(f"removal: {k} matches for {pattern!r}")
+            return out
+        for oid in drop:
+            model_txt = cut(model_txt, r'[ \t]*<object id="%s" [^>]*>.*?</object>\n' % oid)
+            model_txt = cut(model_txt, r'[ \t]*<item objectid="%s" [^>]*/>\n' % oid)
+            ms_txt = cut(ms_txt, r'[ \t]*<object id="%s">.*?</object>\n' % oid)
+            ms_txt = cut(ms_txt, r'[ \t]*<model_instance>\s*<metadata key="object_id" value="%s"/>.*?</model_instance>\n'
+                         % oid, None)
+            if "</assemble>" in ms_txt:
+                ms_txt = cut(ms_txt, r'[ \t]*<assemble_item object_id="%s" [^>]*/>\n' % oid, None)
+        for path in dead:
+            rels_txt = cut(rels_txt, r'[ \t]*<Relationship Target="%s" [^>]*/>\n' % re.escape(path))
+        keep = [o for o in res0 if o not in drop]
+        newpos = {res0.index(o) + 1: keep.index(o) + 1 for o in keep}
+
+        def renum(m):
+            old = int(m.group(2))
+            return "" if old not in newpos else f'{m.group(1)}<object id="{newpos[old]}">{m.group(3)}</object>{m.group(4)}'
+        lr_txt = re.sub(r'([ \t]*)<object id="(\d+)">(.*?)</object>(\n?)', renum, lr_txt, flags=re.S)
+        entries = [(zi, d) for zi, d in entries if "/" + zi.filename not in dead]
+        files = {i.filename: d for i, d in entries}
+        print("removed: " + ", ".join(f"{objs0[o][0]} (object {o})" for o in drop)
+              + f"; mesh files dropped: {[d.split('/')[-1] for d in dead]}")
+
+    model_root = ET.fromstring(model_txt)
+    ms_root = ET.fromstring(ms_txt)
+    lr_root = ET.fromstring(lr_txt)
 
     objs = ms_objects(ms_root)
     plates = plates_of(ms_root)
@@ -231,7 +285,7 @@ def main(argv=None):
     for it, x, y, rot in placed:
         if it.oid is not None:
             continue
-        safe = re.sub(r"[^A-Za-z0-9_-]+", "_", it.name).strip("_") or "card"
+        safe = re.sub(r"[^\w-]+", "_", it.name).strip("_") or "card"
         path = f"/3D/Objects/{safe}_{next_file}.model"
         next_file += 1
         cx, cy = (it.lo[0] + it.hi[0]) / 2, (it.lo[1] + it.hi[1]) / 2
@@ -300,10 +354,16 @@ def main(argv=None):
     # the plate: new instances after its last one, and its name
     pm = re.search(r'<plate>\s*<metadata key="plater_id" value="%d"/>.*?</plate>' % args.plate, ms_txt, re.S)
     block = pm.group(0)
-    nb = insert_before(block, "</plate>", add_inst, last=True)
-    count = len(placed)
-    nb = re.sub(r'(<metadata key="plater_name" value=")([^"]*?)(\d+)( cards")', lambda m: f"{m.group(1)}{m.group(2)}{count}{m.group(4)}", nb)
+    nb = insert_before(block, "</plate>", add_inst, last=True) if add_inst else block
     ms_txt = ms_txt[:pm.start()] + nb + ms_txt[pm.end():]
+    # plate names that count cards ("Plate 2 - 15 cards"): recount the plates that changed
+    for pl in sorted(touched):
+        pm = re.search(r'<plate>\s*<metadata key="plater_id" value="%d"/>.*?</plate>' % pl, ms_txt, re.S)
+        block = pm.group(0)
+        count = block.count("<model_instance>")
+        nb = re.sub(r'(<metadata key="plater_name" value=")([^"]*?)(\d+)( cards")',
+                    lambda m: f"{m.group(1)}{m.group(2)}{count}{m.group(4)}", block)
+        ms_txt = ms_txt[:pm.start()] + nb + ms_txt[pm.end():]
     if "</assemble>" in ms_txt:
         ms_txt = insert_before(ms_txt, "</assemble>", add_asm, last=True)
     if add_lr:
@@ -333,7 +393,7 @@ def main(argv=None):
                     zout.writestr(nzi, data2)
     os.replace(tmp, args.out)
 
-    print(f"plate {args.plate} ({plate_name} -> {count} cards), tower "
+    print(f"plate {args.plate} ({plate_name} -> {len(placed)} cards), tower "
           f"{'moved to %s' % (tower,) if moved_tower else 'kept at (%s, %s)' % cur}:")
     for it, x, y, rot in sorted(placed, key=lambda p: (-p[2], p[1])):
         print(f"  {'NEW ' if it.key.startswith('new:') else '    '}{it.name:16s} x {x:7.2f}  y {y:7.2f}  turned {rot:g}")

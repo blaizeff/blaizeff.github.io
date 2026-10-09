@@ -25,11 +25,11 @@ assembly_part = "all";      // or "foot", "base", "gold", "tree": one part in it
 names = [
   "Patrick", "Clément", "Lise", "Benoit", "Nancy", "Josée", "David", "Sophie", "Mélanie", // 1 Houle I
   "Alexandre", "Johnny", "Suzanne", "Alexandre", "Sandra", "Lucienne", "Yvon", "Manon", "Hassan", // 2 Lanouette
-  "Melody", "Noémie", "Charlotte", "Emilie", "Amélie", // 3 Bridesmaids
+  "Mélody", "Noémie", "Charlotte", "Emilie", "Amélie", // 3 Bridesmaids
   "Samuel", "Mylène", "Audrey", "Noémie", "Michael", "Anushka", "Philomène", "Logan", // 4 Jeunes
   "Max-Antoine", "Brandon", "Victor", "Michael", "Prabh", "Ashwin", // 4 Groomsmen
   "Patric", "Holly", "Zachary", "Audrey-Anne", "France", "Richard", // 5 Flowers-F
-  "Alex", "Coralie", "Julie", "Anthony", "Anosha", "Laura", "Samuel", // 6 Amis
+  "Alexandre", "Coralie", "Julie", "Anthony", "Anosha", "Laura", "Samuel", // 6 Amis
   "Melissa", "Cédric", // DJ Booth
   "Blaize", "Katya" // the bride and groom
 ];

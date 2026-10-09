@@ -58,7 +58,11 @@ with a bed chamfer and a rounded top edge, raised gold Lora SemiBold name (cap h
 18 → 11 deep, 13 high, slot 5 deep along the plaque, plaque leans back 22°, slot_y −1, lip 2.2, channel
 for the raised border, engraved front face (45° carve). **Keep the foot design.** Change foot geometry
 only if a check proves a real problem, and keep any change minimal and called out. The names list is
-the user's real guest list: keep it.
+the user's real guest list: keep it. Changes from the user (2026-10-09): the bride and groom "Blaize" and
+"Katya" have their own cards, "Melody" is spelled "Mélody", and "Alex" is gone (the user's own project
+has a third "Alexandre" in its place). 54 cards. The user edits plates in ElegooSlicer, so late changes go
+into their saved project with `tools/add_cards.py` (adds / removes cards, re-nests one plate, leaves the
+rest of their file untouched) rather than a rebuild.
 
 ## Decisions already made
 1. **Tree = heightfield relief.** The flat back is the glue face and sits on the bed. The front relief
