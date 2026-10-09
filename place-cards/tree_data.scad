@@ -67,6 +67,8 @@ name_table = [
   ["Laura", 0.743, 37.733, 24.192, 26.22],   // plaque 77.9 mm
   ["Melissa", 0.657, 49.621, 24.046, 26.22],   // plaque 89.7 mm
   ["Cédric", 0.557, 43.496, 22.297, 26.22],   // plaque 81.9 mm
+  ["Blaize", 0.743, 39.088, 24.192, 26.22],   // plaque 79.2 mm
+  ["Katya", 0.743, 37.314, 24.192, 26.22],   // plaque 77.4 mm
 ];
 name_clear_x = 25.008;   // fallback for names not in the table: left-most ink x (tree frame)
 plaque_w_max = 125.83;   // widest plaque in the table (Max-Antoine)

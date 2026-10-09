@@ -30,7 +30,8 @@ names = [
   "Max-Antoine", "Brandon", "Victor", "Michael", "Prabh", "Ashwin", // 4 Groomsmen
   "Patric", "Holly", "Zachary", "Audrey-Anne", "France", "Richard", // 5 Flowers-F
   "Alex", "Coralie", "Julie", "Anthony", "Anosha", "Laura", "Samuel", // 6 Amis
-  "Melissa", "Cédric" // DJ Booth
+  "Melissa", "Cédric", // DJ Booth
+  "Blaize", "Katya" // the bride and groom
 ];
 
 // ---------- plaque ----------
